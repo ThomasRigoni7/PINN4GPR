@@ -11,13 +11,16 @@ def parse_materials_file(file_path: str | Path):
     materials = [l[1:-1] for l in materials]
     return materials
 
-def convert_geometry_to_np(filename: str | Path) -> np.ndarray:
+def convert_geometry_to_np(filename: str | Path, output_file: str | Path | None = None, remove_files: bool = False) -> np.ndarray:
     """
-    Converts the given geometry and materials files into numpy arrays of shape [3, height, width].
+    Converts the given geometry and materials files into numpy arrays of shape [4, height, width].
 
     args:
         - filename (str or Path) : filename of the h5 file containing the geometry. 
             The materials file must be in the same folder and named the same, adding "_materials.txt"
+        - output_file (str ot Path): output file to store the result in .npy format. 
+            If 'None', then does not write to disk, but returns the array.
+        - remove_files (bool): if set, deletes the initial h5 and txt files.
 
     returns 'ret' (np.ndarray):
      - ret[0] contains the relative permittivity, 
@@ -25,25 +28,34 @@ def convert_geometry_to_np(filename: str | Path) -> np.ndarray:
      - ret[2] contains the relative permeability.
     """
     h5_path = Path(filename).with_suffix(".h5")
-    txt_path = h5_path.with_name(h5_path.name + "_materials").with_suffix(".txt")
+    txt_path = h5_path.with_name(h5_path.with_suffix("").name + "_materials").with_suffix(".txt")
 
     materials = parse_materials_file(txt_path)
 
-    h5_file = h5py.File("data/geometry_2D_cylinders_clean.h5")
+    h5_file = h5py.File(h5_path)
     data = np.array(h5_file["data"]).squeeze()
 
-    new_data = np.zeros((3, *data.shape), dtype=np.float32)
+    new_data = np.zeros((4, *data.shape), dtype=np.float32)
 
     for index in range(len(materials)):
         indexes = data == index
         relative_permittivity = materials[index][0]
         conductivity = materials[index][1]
         relative_permeability = materials[index][2]
+        magnetic_loss = materials[index][3]
         new_data[0, indexes] = relative_permittivity
         new_data[1, indexes] = conductivity
         new_data[2, indexes] = relative_permeability
+        new_data[3, indexes] = magnetic_loss
 
-    return new_data
+    if remove_files:
+        h5_path.unlink()
+        txt_path.unlink()
+
+    if output_file is None:
+        return new_data
+    else:
+        np.save(output_file, new_data)
         
 
 
