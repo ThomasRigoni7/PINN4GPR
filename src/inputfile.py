@@ -1,0 +1,180 @@
+"""
+Class responsible of writing the input file fed into gprMax
+"""
+import random
+from pathlib import Path
+from typing import Iterable
+
+class InputFile():
+    """
+    Class responsible of writing the input file fed into gprMax.
+    """
+    def __init__(self, 
+                 file_path: str|Path,
+                 title: str, 
+                 domain: tuple[float, float, float], 
+                 spatial_resolution: tuple[float, float, float],
+                 delta_t: float,
+                 output_dir: str | Path):
+        # open file
+        self.f = open(file_path, "w")
+        self.title = title
+        self.domain = domain
+        self.spatial_resolution = spatial_resolution
+        self.delta_t = delta_t
+        self.output_dir = output_dir
+        self.write_general_commands(title, domain, spatial_resolution, delta_t, output_dir)
+    
+
+    def close(self):
+        """
+        Flush the file to disk and close it.
+        """
+        self.f.close()
+    
+    def write_command(self, command: str, args: Iterable):
+        """
+        Write the specified command to file, together with its arguments.
+        """
+        s = f"#{command}: {' '.join(args)} \n"
+        self.f.write(s)
+    
+    def write_line(self, line: str = ""):
+        """
+        Write the line to file, followed by \\n.
+        """
+        self.f.write(line + "\n")
+
+    def write_general_commands(self, 
+                               title: str, 
+                               domain: tuple[float, float, float], 
+                               spatial_resolution: tuple[float, float, float],
+                               delta_t: float,
+                               output_dir: str | Path
+                               ):
+        """
+        Write general commands to file, such as:
+         - title
+         - domain size (in meters)
+         - spatial resolution (in meters)
+         - temporal resolution (in seconds)
+         - output directory
+
+        Called directly by the class constructor, so no need to call it again.
+        """
+        assert len(domain) == 3, f"Domain must be a tuple of 3 floats, got {domain}"
+        assert len(spatial_resolution) == 3, f"The spatial resolution must be a tuple of 3 floats, got {spatial_resolution}"
+
+        self.write_line("## General commands:")
+        self.write_command("title", title)
+        self.write_command("domain", domain)
+        self.write_command("dx_dy_dz", spatial_resolution)
+        self.write_command("time_window", delta_t)
+        self.write_command("output_dir", str(output_dir))
+        self.write_line()
+
+
+    def write_materials(self, materials: list[tuple[str, tuple[float, float, float, float]]]):
+        """
+        Writes multiple #material commands to file.
+
+        'materials' is a list containing the materials. Each material is represented as a tuple of (name, properties), 
+        where properties is a tuple containing the 4 physical properties of the material.
+        """
+        self.write_line("## Materials:")
+        for mat in materials:
+            cmd_args = list(mat[1]) + [mat[0]]
+            self.write_command("material", cmd_args)
+        self.write_line()
+        
+
+    def write_ballast(self, 
+                      ballast_material: list|tuple, 
+                      ballast_file: str|Path,
+                      position: tuple[float],
+                      fouling_height: float = None,
+                      fouling_peplinsky_material: list|tuple = None
+                      ):
+        """
+        Write to file the commands related to ballast stones and its associated fouling.
+
+        Parameters:
+         - ballast_material (list|tuple): material composing the ballast.
+         - ballast_file (str|Path): path to the file containing the ballast stones position and radii.
+         - position (tuple[float]): initial and final height in meters of the ballast layer from the bottom of the model.
+         - fouling height (float): height of the fouling in meters, from the bottom of the ballast layer.
+         - fouling_peplinsky_material (list|tuple): material 
+        """
+        assert len(ballast_material) == 4, f"Ballast material is specified by 4 float arguments, but {ballast_material} given."
+
+        self.write_line("## Ballast:")
+        self.write_command("material", list(ballast_material) + ["ballast"])
+
+        if fouling_height is not None and fouling_height > 0:
+            assert fouling_peplinsky_material is not None and len(fouling_peplinsky_material) == 6, f"""
+                Fouling height specified and higher than 0, but peplinsky fouling material has incorrect format. 
+                Expected 6 floats, but {fouling_peplinsky_material} given."""
+            self.write_command("soil_peplinsky", list(fouling_peplinsky_material) + ["fouling"])
+            self.write_command("fractal_box", (0, position[1], 0, self.domain[0], position[1] + fouling_height, self.domain[2], 
+                                               FRACTAL_DIMENSION, 1, 1, 1, PEP_SOIL_NUMBER, "fouling", "fouling_box", random.randint(0, 2**31)))
+
+        # TODO: print script or all the stones?
+        # script might be better for flexibility, but more difficult to reproduce if ballast files change
+        # all the stones make the files long and difficult to debug
+        script = f"""#python: 
+from gprMax.input_cmd_funcs import *
+
+data_file = open("{ballast_file}",'r')
+for line in data_file:
+    cir = line.split()
+    cylinder(float(cir[0]), float(cir[1]), 0 , float(cir[0]), float(cir[1]), {self.domain[2]}, float(cir[2]), 'ballast')
+
+#end_python:"""
+
+        self.write_line(script)
+        self.write_line()
+        
+
+    def write_pss(self, pss_peplinsky_material: list|tuple, position:tuple[float]):
+        assert len(pss_peplinsky_material) == 6, f"Peplinsky soil material is specified by 6 float arguments, but {pss_peplinsky_material} given."
+        self.write_line("## PSS:")
+        self.write_command("soil_peplinsky", list(pss_peplinsky_material) + ["pss"])
+
+        # TODO: calculate arguments from position, 
+        # TODO: do we use the same seed? Yes, but randomized
+        self.write_command("fractal_box", (0, position[0], 0, self.domain[0], position[1], self.domain[2], 
+                                           FRACTAL_DIMENSION, 1, 1, 1, PEP_SOIL_NUMBER, "pss", "pss_box", random.randint(0, 2**31)))
+        self.write_line()
+    
+    
+    def write_box_material(self, name: str, material: list|tuple, position: tuple[float, float]):
+        assert len(material) == 4, f"Material is specified by 4 float arguments, but {material} given."
+        self.write_line(f"## {name}:")
+        self.write_command("material", list(material) + [name.lower()])
+
+        self.write_command("box", (0, position[0], 0, self.domain[0], position[1], self.domain[2], name.lower()))
+        self.write_line()
+
+    def write_sleepers(self, material: list|tuple, position: list[tuple]):
+        """
+        Write to file the sleepers.
+        """
+        pass
+
+    def write_rails(self, ):
+        pass
+
+    def write_save_geometry(self, ):
+        self.write_line("## SAVE GEOMETRY")
+        self.write_command("geometry_objects_write", (0, 0, 0, self.domain[0], self.domain[1], self.domain[2], self.title + "_geometry"))
+        self.write_command("geometry_view", (0, 0, 0,
+                                             self.domain[0], self.domain[1], self.domain[2], 
+                                             self.spatial_resolution[0] * 2, self.spatial_resolution[1] * 2, self.spatial_resolution[2] * 2, 
+                                             self.title + "_view"))
+        self.write_line()
+
+        
+
+    def write_randomized(self, args):
+        pass
+

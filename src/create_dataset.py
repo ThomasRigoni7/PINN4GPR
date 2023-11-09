@@ -8,12 +8,13 @@ It also creates geometry files and converts their content into numpy arrays cont
 
 import argparse
 from pathlib import Path
+from tqdm import tqdm
 
 from gprMax import run as gprmax_run
 from tools.outputfiles_merge import merge_files
 
 from convert_geometry_to_np import convert_geometry_to_np
-import numpy as np
+from inputfile import InputFile
 
 
 
@@ -65,7 +66,16 @@ def create_gprmax_input_files(args):
     # tmp_path is out_files/tmp 
     # output_dir and geometry files path to set inside the input file
     
-    pass
+    input_dir = Path(args.input_dir)
+    output_dir = Path(args.output_dir)
+    tmp_dir = output_dir / "tmp"
+    for file_number in tqdm(range(args.n)):
+        filename = f"scan_{str(file_number).zfill(4)}"
+        file_path = input_dir / filename
+        file = InputFile(file_path, filename, (1.5, 1.73, 0.002), (0.002, 0.002, 0.002), 2.5e-08, tmp_dir)
+        file.write_randomized(args)
+        file.close()
+
 
 
 
@@ -88,8 +98,8 @@ def run_simulations(input_dir: str | Path, output_dir: str | Path, n_ascans:int,
         gprmax_run(str(f), n_ascans, geometry_fixed=True, geometry_only=geometry_only)
 
         # merge output A-scans
+        output_files_basename = f.with_suffix("").name
         if not geometry_only:
-            output_files_basename = f.with_suffix("").name
             merged_output_file_name = output_files_basename + "_merged.out"
             merge_files(str(tmp_dir/ output_files_basename), removefiles=True)
             (tmp_dir/merged_output_file_name).rename(output_dir/merged_output_file_name)
