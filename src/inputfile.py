@@ -17,7 +17,7 @@ class InputFile():
                  delta_t: float,
                  output_dir: str | Path):
         # open file
-        self.f = open(file_path, "w")
+        self.f = open(Path(file_path).with_suffix(".in"), "w")
         self.title = title
         self.domain = domain
         self.spatial_resolution = spatial_resolution
@@ -36,6 +36,7 @@ class InputFile():
         """
         Write the specified command to file, together with its arguments.
         """
+        args = [str(a) for a in args]
         s = f"#{command}: {' '.join(args)} \n"
         self.f.write(s)
     
@@ -66,13 +67,41 @@ class InputFile():
         assert len(spatial_resolution) == 3, f"The spatial resolution must be a tuple of 3 floats, got {spatial_resolution}"
 
         self.write_line("## General commands:")
-        self.write_command("title", title)
+        self.write_command("title", [title])
         self.write_command("domain", domain)
         self.write_command("dx_dy_dz", spatial_resolution)
-        self.write_command("time_window", delta_t)
-        self.write_command("output_dir", str(output_dir))
+        self.write_command("time_window", [delta_t])
+        self.write_command("output_dir", [str(output_dir)])
         self.write_line()
 
+    def write_source_receiver(self, 
+                              waveform_name: str,
+                              source_central_frequency : int|float,
+                              source_position: tuple[float], 
+                              receiver_position: tuple[float],
+                              step_size: tuple[float]):
+        """
+        Writes the source and receiver commands to file.
+
+        Parameters:
+         - waveform_name (str): name of the waveform, e.g. 'ricker', 'gaussian'...
+         - source_central_frequency (int|float): central frequency of the source waveform.
+         - source_position (tuple[float]): position of the source hertzian dipole in space.
+         - receiver position (tuple[float]): position of the receiver in space.
+         - step_size (tuple[float]): space increments to move the source and receiver between the different A-scans.
+        """
+
+        assert len(source_position) == 3, f"Source position should contain 3 (x,y,z) floats, got {source_position}"
+        assert len(receiver_position) == 3, f"Receiver position should contain 3 (x,y,z) floats, got {source_position}"
+        assert len(step_size) == 3, f"Step size should contain 3 (x,y,z) floats, got {source_position}"
+
+        self.write_line("## Source and receiver:")
+        self.write_command("waveform", (waveform_name, 1, source_central_frequency, "source_wave"))
+        self.write_command("hertzian_dipole", ("z", source_position[0], source_position[1], source_position[2], "source_wave"))
+        self.write_command("rx", receiver_position)
+        self.write_command("src_steps", step_size)
+        self.write_command("rx_steps", step_size)
+        self.write_line()
 
     def write_materials(self, materials: list[tuple[str, tuple[float, float, float, float]]]):
         """
@@ -155,17 +184,27 @@ for line in data_file:
         self.write_command("box", (0, position[0], 0, self.domain[0], position[1], self.domain[2], name.lower()))
         self.write_line()
 
-    def write_sleepers(self, material: list|tuple, position: list[tuple]):
+    def write_sleepers(self, material: list|tuple, position: list[tuple], size:tuple[float, float]):
         """
         Write to file the sleepers.
+
+        Parameters:
+         - material (list|tuple): material composing the sleepers.
+         - position (list[tuple]): list of (x,y,z) position of the sleepers in meters, representing their top-left corner.
+         - size (tuple[float]): (x, y, z) size of the sleepers in meters.
         """
-        pass
+        self.write_line("## Sleepers:")
+        self.write_command("material", list(material) + ["sleepers_material"])
+        for p in position:
+            self.write_command("box", (p[0], p[1], p[2], p[0] + size[0], p[1] + size[1], p[1] + size[2]))
+        
+        self.write_line()
 
     def write_rails(self, ):
         pass
 
     def write_save_geometry(self, ):
-        self.write_line("## SAVE GEOMETRY")
+        self.write_line("## Save geometry")
         self.write_command("geometry_objects_write", (0, 0, 0, self.domain[0], self.domain[1], self.domain[2], self.title + "_geometry"))
         self.write_command("geometry_view", (0, 0, 0,
                                              self.domain[0], self.domain[1], self.domain[2], 
@@ -176,5 +215,10 @@ for line in data_file:
         
 
     def write_randomized(self, args):
-        pass
+        layer_sizes: list[float] = args.layer_sizes
+        sleepers_separation: float = args.sleepers_separation
+        sleepers_materials: list[str] = args.sleepers_material
+        max_fouling_level: float = args.max_fouling_level
+        max_fouling_water: float = args.max_fouling_water
+        max_pss_water: float = args.max_pss_water
 

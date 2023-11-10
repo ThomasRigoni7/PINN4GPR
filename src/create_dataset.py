@@ -9,6 +9,7 @@ It also creates geometry files and converts their content into numpy arrays cont
 import argparse
 from pathlib import Path
 from tqdm import tqdm
+from yaml import safe_load
 
 from gprMax import run as gprmax_run
 from tools.outputfiles_merge import merge_files
@@ -23,10 +24,10 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
 
     # general settings
-    parser.add_argument("-n", type=int, help="Number of input files to generate/simulations to run.")
+    parser.add_argument("-n_samples", type=int, help="Number of input files to generate/simulations to run.", default=1)
     parser.add_argument("-n_ascans", type=int, default=55, 
                         help="Number of A-scans that constitute a B-scan, default=55")
-    parser.add_argument("--generate_input", action="store_true", 
+    parser.add_argument("-generate_input", action="store_true", 
                         help="If True, generate input files. Otherwise use the files inside '-input_dir'.")
     parser.add_argument("-input_dir", type=str, default="./gprmax_input_files/generated/", 
                         help="Directory to put the generated input files.")
@@ -34,13 +35,15 @@ def parse_arguments():
                         help="Directory to store the generated results.")
     parser.add_argument("-geometry_only", action="store_true",
                         help="If set, only generate the geometries corresponding to the input files, but don't run the simulations.")
+    parser.add_argument("-gprmax_config", type=str, default="gprmax_config.yaml",
+                        help="Path to the gprmax yaml config file.")
     
     # simulation settings
     parser.add_argument("-layer_sizes", nargs=4, type=float, default=[0.15, 0.3, 0.55, 0.7],
                         help="Sizes of the gravel/asphalt/pss/ballast layers. Interpreted as cumulative height.")
     parser.add_argument("-sleepers_separation", type=float, default=0.65,
                         help="Separation between the sleepers in meters.")
-    parser.add_argument("-sleepers_material", type=str, choices=["all", "steel", "concrete", "wood"], default="all")
+    parser.add_argument("-sleepers_material", nargs="*", type=str, choices=["all", "steel", "concrete", "wood"], default="all")
     parser.add_argument("-max_fouling_level", type=float, default=0.15,
                         help="Maximum ballast fouling height in meters, measured from the pss layer interface.")
     parser.add_argument("-max_fouling_water", type=float, default=0.15,
@@ -60,19 +63,20 @@ def create_gprmax_input_files(args):
     The intermediate A-scans are set to be written in 'output_dir/tmp/'
     """
     
-    # various paths:
-    # input_files path
-    # output_files path
-    # tmp_path is out_files/tmp 
-    # output_dir and geometry files path to set inside the input file
+    # read the yaml configuration file with the materials:
+    with open(args.gprmax_config, "r") as f:
+        config = safe_load(f)
+
+    print(config)
     
     input_dir = Path(args.input_dir)
+    input_dir.mkdir(exist_ok=True, parents=True)
     output_dir = Path(args.output_dir)
-    tmp_dir = output_dir / "tmp"
-    for file_number in tqdm(range(args.n)):
+    tmp_dir = (output_dir / "tmp").absolute()
+    for file_number in tqdm(range(args.n_samples)):
         filename = f"scan_{str(file_number).zfill(4)}"
         file_path = input_dir / filename
-        file = InputFile(file_path, filename, (1.5, 1.73, 0.002), (0.002, 0.002, 0.002), 2.5e-08, tmp_dir)
+        file = InputFile(file_path.with_suffix(".in"), filename, (1.5, 1.73, 0.002), (0.002, 0.002, 0.002), 2.5e-08, tmp_dir)
         file.write_randomized(args)
         file.close()
 
@@ -114,4 +118,4 @@ if __name__ == "__main__":
     if args.generate_input:
         create_gprmax_input_files(args)
 
-    run_simulations(Path(args.input_dir), Path(args.output_dir), args.n_ascans, geometry_only=False)
+    #run_simulations(Path(args.input_dir), Path(args.output_dir), args.n_ascans, geometry_only=False)

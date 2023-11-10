@@ -1,0 +1,41 @@
+# general configuration
+n_samples: 1
+
+generate_input: false
+geometry_only: false
+
+input_dir: "gprmax_input_files/generated/"
+output_dir: "gprmax_output_files/"
+
+# simulation configuration
+n_ascans: 55
+domain: [1.5, 1.73, 0.002]
+spatial_resolution: [0.002, 0.002, 0.002]
+delta_t: 0.002
+
+source_waveform: "ricker"
+source_amplitude: 1
+source_central_frequency: 1000000000
+step_size: 0.02
+
+fractal_dimension: 1.5
+pep_soil_number: 5
+
+materials:
+  - ballast_stones: [6.5, 0, 1, 0]
+  - water: [80, 0, 1, 0]
+  - concrete: [8, 0.01, 1, 0]
+  - pss: [0.9, 0.1, 2, 2.66, 0.02, 0.03]
+  - wood: [2, 0.01, 1, 0]
+  - gravel: [5, 0, 1, 0]
+  - fouling: [0.9, 0.1, 2, 2.66, 0.02, 0.03]
+
+layers:
+  - gravel
+  - asphalt
+  - pss
+  - ballast
+  - sleepers
+
+layer_sizes: [0.15, 0.3, 0.55, 0.7]
+sleepers_separation: 0.65
