@@ -16,20 +16,24 @@ delta_t: 0.002
 source_waveform: "ricker"
 source_amplitude: 1
 source_central_frequency: 1000000000
-step_size: 0.02
+source_position: [0.2, 1.53, 0.001]
+receiver_position: [0.35, 1.53, 0.001]
+step_size: [0.02, 0, 0]
 
 fractal_dimension: 1.5
 pep_soil_number: 5
 
-materials:
-  - ballast_stones: [6.5, 0, 1, 0]
-  - water: [80, 0, 1, 0]
-  - concrete: [8, 0.01, 1, 0]
-  - pss: [0.9, 0.1, 2, 2.66, 0.02, 0.03]
-  - wood: [2, 0.01, 1, 0]
-  - gravel: [5, 0, 1, 0]
-  - fouling: [0.9, 0.1, 2, 2.66, 0.02, 0.03]
+materials: {
+  ballast_stones: [6.5, 0, 1, 0],
+  water: [80, 0, 1, 0],
+  concrete: [8, 0.01, 1, 0],
+  pss: [0.9, 0.1, 2, 2.66, 0.02, 0.03],
+  wood: [2, 0.01, 1, 0],
+  gravel: [5, 0, 1, 0],
+  fouling: [0.9, 0.1, 2, 2.66, 0.02, 0.03]
+}
 
+# TODO: Should the layers be fully specified here?
 layers:
   - gravel
   - asphalt
@@ -38,4 +42,12 @@ layers:
   - sleepers
 
 layer_sizes: [0.15, 0.3, 0.55, 0.7]
+
+# sleepers
 sleepers_separation: 0.65
+sleepers_material: "all"
+
+# fouling and water content
+max_fouling_level: 0.15
+max_fouling_water: 0.15
+max_pss_water: 0.15

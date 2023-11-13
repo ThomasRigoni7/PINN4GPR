@@ -16,7 +16,7 @@ from tools.outputfiles_merge import merge_files
 
 from convert_geometry_to_np import convert_geometry_to_np
 from inputfile import InputFile
-
+from configuration import GprMaxConfig
 
 
 def parse_arguments():
@@ -43,7 +43,7 @@ def parse_arguments():
                         help="Sizes of the gravel/asphalt/pss/ballast layers. Interpreted as cumulative height.")
     parser.add_argument("-sleepers_separation", type=float, default=0.65,
                         help="Separation between the sleepers in meters.")
-    parser.add_argument("-sleepers_material", nargs="*", type=str, choices=["all", "steel", "concrete", "wood"], default="all")
+    parser.add_argument("-sleepers_material", nargs="*", type=str, choices=["all", "steel", "concrete", "wood"], default=["all"])
     parser.add_argument("-max_fouling_level", type=float, default=0.15,
                         help="Maximum ballast fouling height in meters, measured from the pss layer interface.")
     parser.add_argument("-max_fouling_water", type=float, default=0.15,
@@ -54,7 +54,7 @@ def parse_arguments():
     args = parser.parse_args()
     return args
     
-def create_gprmax_input_files(args):
+def create_gprmax_input_files(config: GprMaxConfig):
     """
     Creates the input files needed from gprMax to run the simulations.
     
@@ -63,22 +63,18 @@ def create_gprmax_input_files(args):
     The intermediate A-scans are set to be written in 'output_dir/tmp/'
     """
     
-    # read the yaml configuration file with the materials:
-    with open(args.gprmax_config, "r") as f:
-        config = safe_load(f)
-
-    print(config)
-    
-    input_dir = Path(args.input_dir)
+    input_dir = config.input_dir
     input_dir.mkdir(exist_ok=True, parents=True)
-    output_dir = Path(args.output_dir)
+    output_dir = config.output_dir
     tmp_dir = (output_dir / "tmp").absolute()
-    for file_number in tqdm(range(args.n_samples)):
+    for file_number in tqdm(range(config.n_samples)):
         filename = f"scan_{str(file_number).zfill(4)}"
         file_path = input_dir / filename
-        file = InputFile(file_path.with_suffix(".in"), filename, (1.5, 1.73, 0.002), (0.002, 0.002, 0.002), 2.5e-08, tmp_dir)
-        file.write_randomized(args)
-        file.close()
+
+        tmp_config = config.copy(update={"output_dir": tmp_dir}, deep=True)
+
+        with InputFile(file_path.with_suffix(".in"), filename) as f:
+            f.write_randomized(tmp_config)
 
 
 
@@ -99,7 +95,7 @@ def run_simulations(input_dir: str | Path, output_dir: str | Path, n_ascans:int,
 
     for f in input_dir.glob("*.in"):
         # run sims
-        gprmax_run(str(f), n_ascans, geometry_fixed=True, geometry_only=geometry_only)
+        gprmax_run(str(f), n_ascans, geometry_fixed=True, geometry_only=geometry_only, gpu=[0])
 
         # merge output A-scans
         output_files_basename = f.with_suffix("").name
@@ -115,7 +111,17 @@ def run_simulations(input_dir: str | Path, output_dir: str | Path, n_ascans:int,
 if __name__ == "__main__":
     args = parse_arguments()
 
-    if args.generate_input:
-        create_gprmax_input_files(args)
+    config = vars(args)
 
-    #run_simulations(Path(args.input_dir), Path(args.output_dir), args.n_ascans, geometry_only=False)
+    # read the yaml configuration file with the materials:
+    with open(args.gprmax_config, "r") as f:
+        default_config = safe_load(f)
+
+    default_config.update(config)
+    config = GprMaxConfig(**default_config)
+
+
+    if args.generate_input:
+        create_gprmax_input_files(config)
+
+    run_simulations(Path(args.input_dir), Path(args.output_dir), args.n_ascans, geometry_only=False)

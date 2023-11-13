@@ -5,26 +5,24 @@ import random
 from pathlib import Path
 from typing import Iterable
 
+from configuration import GprMaxConfig
+
 class InputFile():
     """
     Class responsible of writing the input file fed into gprMax.
     """
     def __init__(self, 
                  file_path: str|Path,
-                 title: str, 
-                 domain: tuple[float, float, float], 
-                 spatial_resolution: tuple[float, float, float],
-                 delta_t: float,
-                 output_dir: str | Path):
+                 title: str):
         # open file
         self.f = open(Path(file_path).with_suffix(".in"), "w")
         self.title = title
-        self.domain = domain
-        self.spatial_resolution = spatial_resolution
-        self.delta_t = delta_t
-        self.output_dir = output_dir
-        self.write_general_commands(title, domain, spatial_resolution, delta_t, output_dir)
     
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def close(self):
         """
@@ -66,6 +64,10 @@ class InputFile():
         assert len(domain) == 3, f"Domain must be a tuple of 3 floats, got {domain}"
         assert len(spatial_resolution) == 3, f"The spatial resolution must be a tuple of 3 floats, got {spatial_resolution}"
 
+        self.domain = domain
+        self.spatial_resolution = spatial_resolution
+        self.delta_t = delta_t
+
         self.write_line("## General commands:")
         self.write_command("title", [title])
         self.write_command("domain", domain)
@@ -77,9 +79,9 @@ class InputFile():
     def write_source_receiver(self, 
                               waveform_name: str,
                               source_central_frequency : int|float,
-                              source_position: tuple[float], 
-                              receiver_position: tuple[float],
-                              step_size: tuple[float]):
+                              source_position: tuple[float, float, float], 
+                              receiver_position: tuple[float, float, float],
+                              step_size: tuple[float, float, float]):
         """
         Writes the source and receiver commands to file.
 
@@ -118,7 +120,7 @@ class InputFile():
         
 
     def write_ballast(self, 
-                      ballast_material: list|tuple, 
+                      ballast_material: tuple[float, float, float, float], 
                       ballast_file: str|Path,
                       position: tuple[float],
                       fouling_height: float = None,
@@ -145,7 +147,7 @@ class InputFile():
                 Expected 6 floats, but {fouling_peplinsky_material} given."""
             self.write_command("soil_peplinsky", list(fouling_peplinsky_material) + ["fouling"])
             self.write_command("fractal_box", (0, position[1], 0, self.domain[0], position[1] + fouling_height, self.domain[2], 
-                                               FRACTAL_DIMENSION, 1, 1, 1, PEP_SOIL_NUMBER, "fouling", "fouling_box", random.randint(0, 2**31)))
+                                               self.config.fractal_dimension, 1, 1, 1, self.config.pep_soil_number, "fouling", "fouling_box", random.randint(0, 2**31)))
 
         # TODO: print script or all the stones?
         # script might be better for flexibility, but more difficult to reproduce if ballast files change
@@ -172,7 +174,7 @@ for line in data_file:
         # TODO: calculate arguments from position, 
         # TODO: do we use the same seed? Yes, but randomized
         self.write_command("fractal_box", (0, position[0], 0, self.domain[0], position[1], self.domain[2], 
-                                           FRACTAL_DIMENSION, 1, 1, 1, PEP_SOIL_NUMBER, "pss", "pss_box", random.randint(0, 2**31)))
+                                           self.config.fractal_dimension, 1, 1, 1, self.config.pep_soil_number, "pss", "pss_box", random.randint(0, 2**31)))
         self.write_line()
     
     
@@ -214,11 +216,12 @@ for line in data_file:
 
         
 
-    def write_randomized(self, args):
-        layer_sizes: list[float] = args.layer_sizes
-        sleepers_separation: float = args.sleepers_separation
-        sleepers_materials: list[str] = args.sleepers_material
-        max_fouling_level: float = args.max_fouling_level
-        max_fouling_water: float = args.max_fouling_water
-        max_pss_water: float = args.max_pss_water
+    def write_randomized(self, config: GprMaxConfig):
+        # general commands
+        self.write_general_commands(self.title, config.domain, config.spatial_resolution, config.delta_t, config.output_dir)
+        # source and receiver
+        self.write_source_receiver(config.source_waveform, config.source_central_frequency, config.source_position, config.receiver_position, config.step_size)
+        # TODO: add materials
 
+        # save geometry
+        self.write_save_geometry()
