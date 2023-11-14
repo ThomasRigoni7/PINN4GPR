@@ -1,5 +1,5 @@
 # general configuration
-n_samples: 1
+n_samples: 2
 
 generate_input: false
 geometry_only: false
@@ -8,10 +8,10 @@ input_dir: "gprmax_input_files/generated/"
 output_dir: "gprmax_output_files/"
 
 # simulation configuration
-n_ascans: 55
+n_ascans: 2
 domain: [1.5, 1.73, 0.002]
 spatial_resolution: [0.002, 0.002, 0.002]
-delta_t: 0.002
+delta_t: 2.5e-08
 
 source_waveform: "ricker"
 source_amplitude: 1
@@ -45,7 +45,7 @@ layer_sizes: [0.15, 0.3, 0.55, 0.7]
 
 # sleepers
 sleepers_separation: 0.65
-sleepers_material: "all"
+sleepers_material: ["all"]
 
 # fouling and water content
 max_fouling_level: 0.15

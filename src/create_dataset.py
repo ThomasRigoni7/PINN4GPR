@@ -24,14 +24,14 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
 
     # general settings
-    parser.add_argument("-n_samples", type=int, help="Number of input files to generate/simulations to run.", default=1)
-    parser.add_argument("-n_ascans", type=int, default=55, 
+    parser.add_argument("-n_samples", type=int, help="Number of input files to generate/simulations to run.")
+    parser.add_argument("-n_ascans", type=int,
                         help="Number of A-scans that constitute a B-scan, default=55")
     parser.add_argument("-generate_input", action="store_true", 
                         help="If True, generate input files. Otherwise use the files inside '-input_dir'.")
-    parser.add_argument("-input_dir", type=str, default="./gprmax_input_files/generated/", 
+    parser.add_argument("-input_dir", type=str,
                         help="Directory to put the generated input files.")
-    parser.add_argument("-output_dir", type=str, default="./gprmax_output/",
+    parser.add_argument("-output_dir", type=str,
                         help="Directory to store the generated results.")
     parser.add_argument("-geometry_only", action="store_true",
                         help="If set, only generate the geometries corresponding to the input files, but don't run the simulations.")
@@ -39,16 +39,16 @@ def parse_arguments():
                         help="Path to the gprmax yaml config file.")
     
     # simulation settings
-    parser.add_argument("-layer_sizes", nargs=4, type=float, default=[0.15, 0.3, 0.55, 0.7],
+    parser.add_argument("-layer_sizes", nargs=4, type=float,
                         help="Sizes of the gravel/asphalt/pss/ballast layers. Interpreted as cumulative height.")
-    parser.add_argument("-sleepers_separation", type=float, default=0.65,
+    parser.add_argument("-sleepers_separation", type=float,
                         help="Separation between the sleepers in meters.")
-    parser.add_argument("-sleepers_material", nargs="*", type=str, choices=["all", "steel", "concrete", "wood"], default=["all"])
-    parser.add_argument("-max_fouling_level", type=float, default=0.15,
+    parser.add_argument("-sleepers_material", nargs="*", type=str, choices=["all", "steel", "concrete", "wood"])
+    parser.add_argument("-max_fouling_level", type=float,
                         help="Maximum ballast fouling height in meters, measured from the pss layer interface.")
-    parser.add_argument("-max_fouling_water", type=float, default=0.15,
+    parser.add_argument("-max_fouling_water", type=float,
                         help="Maximum percentage of water in fouling material between ballast stones. Default 0.15 means 15%.")
-    parser.add_argument("-max_pss_water", type=float, default=0.15,
+    parser.add_argument("-max_pss_water", type=float,
                         help="Maximum percentage of water in the pss material. Default 0.15 means 15%.")
     
     args = parser.parse_args()
@@ -76,8 +76,20 @@ def create_gprmax_input_files(config: GprMaxConfig):
         with InputFile(file_path.with_suffix(".in"), filename) as f:
             f.write_randomized(tmp_config)
 
+##############################################
+# Create a nostdout context
+import contextlib
+import sys
+class DummyFile(object):
+    def write(self, x): pass
 
-
+@contextlib.contextmanager
+def nostdout():
+    save_stdout = sys.stdout
+    sys.stdout = DummyFile()
+    yield
+    sys.stdout = save_stdout
+###############################################
 
 def run_simulations(input_dir: str | Path, output_dir: str | Path, n_ascans:int, geometry_only: bool):
     """
@@ -95,7 +107,13 @@ def run_simulations(input_dir: str | Path, output_dir: str | Path, n_ascans:int,
 
     for f in input_dir.glob("*.in"):
         # run sims
-        gprmax_run(str(f), n_ascans, geometry_fixed=True, geometry_only=geometry_only, gpu=[0])
+        # TODO: the gprmax run is not idempotent: if run multiple times, the grid does not get deleted, 
+        # but persists, so gprMax either runs the same model twice, or continues with the already generated model. 
+        # This can be fixed by adding a condition inside gprmax that checks if the model (A-scan) is the last one and deletes the grid 
+        # inside the global variable 
+        # The grid is not visible outside of the module (file) it is defined in, so it is not possible to delete it only with the global keyword.
+        with nostdout():
+            gprmax_run(str(f), n_ascans, geometry_fixed=True, geometry_only=geometry_only, gpu=[0])
 
         # merge output A-scans
         output_files_basename = f.with_suffix("").name
@@ -117,11 +135,11 @@ if __name__ == "__main__":
     with open(args.gprmax_config, "r") as f:
         default_config = safe_load(f)
 
-    default_config.update(config)
+    default_config.update({k:v for k, v in config.items() if v is not None})
     config = GprMaxConfig(**default_config)
 
 
-    if args.generate_input:
+    if config.generate_input:
         create_gprmax_input_files(config)
 
-    run_simulations(Path(args.input_dir), Path(args.output_dir), args.n_ascans, geometry_only=False)
+    run_simulations(config.input_dir, config.output_dir, config.n_ascans, geometry_only=False)

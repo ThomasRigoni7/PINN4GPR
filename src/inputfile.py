@@ -205,13 +205,21 @@ for line in data_file:
     def write_rails(self, ):
         pass
 
-    def write_save_geometry(self, ):
+    def write_save_geometry(self, output_dir: str | Path):
+        """
+        Write the 'geometry_objects_write' and the 'geometry_view' commands to file.
+
+        Parameters:
+         - output_dir (str | Path): directory in which to place the output.
+        """
+        output_dir = Path(output_dir)
+
         self.write_line("## Save geometry")
-        self.write_command("geometry_objects_write", (0, 0, 0, self.domain[0], self.domain[1], self.domain[2], self.title + "_geometry"))
-        self.write_command("geometry_view", (0, 0, 0,
-                                             self.domain[0], self.domain[1], self.domain[2], 
-                                             self.spatial_resolution[0] * 2, self.spatial_resolution[1] * 2, self.spatial_resolution[2] * 2, 
-                                             self.title + "_view"))
+        self.write_command("geometry_objects_write", (0, 0, 0, self.domain[0], self.domain[1], self.domain[2], output_dir / (self.title + "_geometry")))
+        # self.write_command("geometry_view", (0, 0, 0,
+        #                                      self.domain[0], self.domain[1], self.domain[2], 
+        #                                      self.spatial_resolution[0] * 2, self.spatial_resolution[1] * 2, self.spatial_resolution[2] , 
+        #                                      output_dir / (self.title + "_view"), "n"))
         self.write_line()
 
         
@@ -224,4 +232,4 @@ for line in data_file:
         # TODO: add materials
 
         # save geometry
-        self.write_save_geometry()
+        self.write_save_geometry(config.output_dir)
