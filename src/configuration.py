@@ -36,9 +36,11 @@ class GprMaxConfig(BaseModel):
 
     layers: list[str]
 
-    layer_sizes: tuple[float, ...]
+    layer_sizes: tuple[float, float, float, float]
+
     sleepers_separation: float
     sleepers_material: list[str]
+    sleepers_size: tuple[float, float, float]
 
     max_fouling_level: float
     max_fouling_water: float

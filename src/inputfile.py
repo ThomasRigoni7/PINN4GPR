@@ -4,6 +4,7 @@ Class responsible of writing the input file fed into gprMax
 import random
 from pathlib import Path
 from typing import Iterable
+import numpy as np
 
 from configuration import GprMaxConfig
 
@@ -124,7 +125,9 @@ class InputFile():
                       ballast_file: str|Path,
                       position: tuple[float],
                       fouling_height: float = None,
-                      fouling_peplinsky_material: list|tuple = None
+                      fouling_peplinski_material: list|tuple = None,
+                      fractal_dimension: float = None,
+                      pep_soil_number: int = None
                       ):
         """
         Write to file the commands related to ballast stones and its associated fouling.
@@ -134,7 +137,9 @@ class InputFile():
          - ballast_file (str|Path): path to the file containing the ballast stones position and radii.
          - position (tuple[float]): initial and final height in meters of the ballast layer from the bottom of the model.
          - fouling height (float): height of the fouling in meters, from the bottom of the ballast layer.
-         - fouling_peplinsky_material (list|tuple): material 
+         - fouling_peplinski_material (list|tuple): fouling peplinski material
+         - fractal_dimension (float): fractal dimension of the box representing the fouling.
+         - pep_soil_number (int): number of different peplinski fractal materials composing the fouling layer.
         """
         assert len(ballast_material) == 4, f"Ballast material is specified by 4 float arguments, but {ballast_material} given."
 
@@ -142,12 +147,16 @@ class InputFile():
         self.write_command("material", list(ballast_material) + ["ballast"])
 
         if fouling_height is not None and fouling_height > 0:
-            assert fouling_peplinsky_material is not None and len(fouling_peplinsky_material) == 6, f"""
-                Fouling height specified and higher than 0, but peplinsky fouling material has incorrect format. 
-                Expected 6 floats, but {fouling_peplinsky_material} given."""
-            self.write_command("soil_peplinsky", list(fouling_peplinsky_material) + ["fouling"])
+            assert fouling_peplinski_material is not None and len(fouling_peplinski_material) == 6, f"""
+                Fouling height specified and higher than 0, but peplinski fouling material has incorrect format. 
+                Expected 6 floats, but {fouling_peplinski_material} given."""
+            assert fractal_dimension is not None and pep_soil_number is not None, f"""
+                Fractal dimension and peplinski soil number must be specified if fouling present.
+                Got fractal_dimension: {fractal_dimension},
+                pep_soil_number: {pep_soil_number}"""
+            self.write_command("soil_peplinski", list(fouling_peplinski_material) + ["fouling"])
             self.write_command("fractal_box", (0, position[1], 0, self.domain[0], position[1] + fouling_height, self.domain[2], 
-                                               self.config.fractal_dimension, 1, 1, 1, self.config.pep_soil_number, "fouling", "fouling_box", random.randint(0, 2**31)))
+                                               fractal_dimension, 1, 1, 1, pep_soil_number, "fouling", "fouling_box", random.randint(0, 2**31)))
 
         # TODO: print script or all the stones?
         # script might be better for flexibility, but more difficult to reproduce if ballast files change
@@ -158,7 +167,7 @@ from gprMax.input_cmd_funcs import *
 data_file = open("{ballast_file}",'r')
 for line in data_file:
     cir = line.split()
-    cylinder(float(cir[0]), float(cir[1]), 0 , float(cir[0]), float(cir[1]), {self.domain[2]}, float(cir[2]), 'ballast')
+    cylinder(float(cir[0]), float(cir[1]), 0 , float(cir[0]), float(cir[1]), {self.domain[2]}, float(cir[2]), 'ballast', 'n')
 
 #end_python:"""
 
@@ -166,15 +175,22 @@ for line in data_file:
         self.write_line()
         
 
-    def write_pss(self, pss_peplinsky_material: list|tuple, position:tuple[float]):
-        assert len(pss_peplinsky_material) == 6, f"Peplinsky soil material is specified by 6 float arguments, but {pss_peplinsky_material} given."
-        self.write_line("## PSS:")
-        self.write_command("soil_peplinsky", list(pss_peplinsky_material) + ["pss"])
+    def write_pss(self, pss_peplinski_material: list|tuple, position:tuple[float, float], fractal_dimention: float, pep_soil_number: int):
+        """
+        Writes the pss layer into file.
 
-        # TODO: calculate arguments from position, 
-        # TODO: do we use the same seed? Yes, but randomized
+        Parameters:
+         - pss_peplinski_material (list|tuple): peplinski material for the PSS layer.
+         - position (tuple[float, float]): start and end y of the PSS layer.
+         - fractal_dimension (float): fractal dimension of the box representing the PSS.
+         - pep_soil_number (int): number of different peplinski fractal materials composing the PSS layer.
+        """
+        assert len(pss_peplinski_material) == 6, f"peplinski soil material is specified by 6 float arguments, but {pss_peplinski_material} given."
+        self.write_line("## PSS:")
+        self.write_command("soil_peplinski", list(pss_peplinski_material) + ["pss"])
+
         self.write_command("fractal_box", (0, position[0], 0, self.domain[0], position[1], self.domain[2], 
-                                           self.config.fractal_dimension, 1, 1, 1, self.config.pep_soil_number, "pss", "pss_box", random.randint(0, 2**31)))
+                                           fractal_dimention, 1, 1, 1, pep_soil_number, "pss", "pss_box", random.randint(0, 2**31)))
         self.write_line()
     
     
@@ -186,19 +202,30 @@ for line in data_file:
         self.write_command("box", (0, position[0], 0, self.domain[0], position[1], self.domain[2], name.lower()))
         self.write_line()
 
-    def write_sleepers(self, material: list|tuple, position: list[tuple], size:tuple[float, float]):
+    def clip_into_domain(self, coords: tuple[float, float, float]) -> tuple[float, float, float]:
+        """
+        Clips coordinates into the domain
+        """
+        coords = np.clip(coords, (0, 0, 0), self.domain)
+        return (coords[0], coords[1], coords[2])
+        
+
+    def write_sleepers(self, material: list|tuple, position: list[tuple], size:tuple[float, float, float], material_name: str = None):
         """
         Write to file the sleepers.
 
         Parameters:
          - material (list|tuple): material composing the sleepers.
-         - position (list[tuple]): list of (x,y,z) position of the sleepers in meters, representing their top-left corner.
+         - position (list[tuple]): list of (x,y,z) position of the sleepers in meters, representing their bottom-left corner.
          - size (tuple[float]): (x, y, z) size of the sleepers in meters.
         """
         self.write_line("## Sleepers:")
-        self.write_command("material", list(material) + ["sleepers_material"])
+        material_name = "sleepers_material" if material_name is None else f"{material_name}_sleepers"
+        self.write_command("material", list(material) + [material_name])
         for p in position:
-            self.write_command("box", (p[0], p[1], p[2], p[0] + size[0], p[1] + size[1], p[1] + size[2]))
+            p = self.clip_into_domain(p)
+            p_end = self.clip_into_domain((p[0] + size[0], p[1] + size[1], p[1] + size[2]))
+            self.write_command("box", (*p, *p_end, material_name))
         
         self.write_line()
 
@@ -216,20 +243,44 @@ for line in data_file:
 
         self.write_line("## Save geometry")
         self.write_command("geometry_objects_write", (0, 0, 0, self.domain[0], self.domain[1], self.domain[2], output_dir / (self.title + "_geometry")))
-        # self.write_command("geometry_view", (0, 0, 0,
-        #                                      self.domain[0], self.domain[1], self.domain[2], 
-        #                                      self.spatial_resolution[0] * 2, self.spatial_resolution[1] * 2, self.spatial_resolution[2] , 
-        #                                      output_dir / (self.title + "_view"), "n"))
+        self.write_command("geometry_view", (0, 0, 0,
+                                             self.domain[0], self.domain[1], self.domain[2], 
+                                             self.spatial_resolution[0], self.spatial_resolution[1], self.spatial_resolution[2] , 
+                                             output_dir / (self.title + "_view"), "n"))
         self.write_line()
 
         
 
-    def write_randomized(self, config: GprMaxConfig):
+    def write_randomized(self, config: GprMaxConfig, seed: int|None = None):
+        random.seed(seed)
         # general commands
         self.write_general_commands(self.title, config.domain, config.spatial_resolution, config.delta_t, config.output_dir)
         # source and receiver
-        self.write_source_receiver(config.source_waveform, config.source_central_frequency, config.source_position, config.receiver_position, config.step_size)
+        self.write_source_receiver(config.source_waveform, config.source_central_frequency, 
+                                   config.source_position, config.receiver_position, config.step_size)
         # TODO: add materials
+        self.write_box_material("Gravel", config.materials["gravel"], (0, config.layer_sizes[0]))
+        self.write_box_material("Asphalt", config.materials["asphalt"], (config.layer_sizes[0], config.layer_sizes[1]))
+        self.write_pss(config.materials["pss"], (config.layer_sizes[1], config.layer_sizes[2]), config.fractal_dimension, config.pep_soil_number)
+
+        fouling_level = round(random.random() * config.max_fouling_level, 2)
+        self.write_ballast(config.materials["ballast"], Path("/home/thomas/Desktop/ETH/tesi/PINN4GPR/gprmax_input_files/cirList_1.txt"), (config.layer_sizes[2], config.layer_sizes[3]), fouling_level, config.materials["fouling"],
+                           config.fractal_dimension, config.pep_soil_number)
+
+        # SLEEPERS
+        if "all" in config.sleepers_material:
+            config.sleepers_material = ["steel", "concrete", "wood"]
+        sleepers_material_name = random.choice(config.sleepers_material)
+        # sleepers are placed on top of the ballast, with 70% of the sleepers submerged in it.
+        first_sleeper_position = round(random.random() * config.sleepers_separation - config.sleepers_size[0] + config.spatial_resolution[0], 2)
+        all_sleepers_positions = []
+        pos = first_sleeper_position
+        sleepers_y = config.layer_sizes[3] - 0.7*config.sleepers_size[1]
+        while pos < config.domain[0]:
+            all_sleepers_positions.append((pos, sleepers_y, 0))
+            pos += config.sleepers_separation
+        self.write_sleepers(config.materials[sleepers_material_name], all_sleepers_positions, config.sleepers_size, sleepers_material_name)
+
 
         # save geometry
         self.write_save_geometry(config.output_dir)

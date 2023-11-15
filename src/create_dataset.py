@@ -112,8 +112,8 @@ def run_simulations(input_dir: str | Path, output_dir: str | Path, n_ascans:int,
         # This can be fixed by adding a condition inside gprmax that checks if the model (A-scan) is the last one and deletes the grid 
         # inside the global variable 
         # The grid is not visible outside of the module (file) it is defined in, so it is not possible to delete it only with the global keyword.
-        with nostdout():
-            gprmax_run(str(f), n_ascans, geometry_fixed=True, geometry_only=geometry_only, gpu=[0])
+        # with nostdout():
+        gprmax_run(str(f), n_ascans, geometry_fixed=True, geometry_only=geometry_only, gpu=[0])
 
         # merge output A-scans
         output_files_basename = f.with_suffix("").name
