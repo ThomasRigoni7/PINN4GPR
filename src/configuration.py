@@ -20,7 +20,7 @@ class GprMaxConfig(BaseModel):
     n_ascans: int
     domain: tuple[float, float, float]
     spatial_resolution: tuple[float, float, float]
-    delta_t: float
+    time_window: float
 
     source_waveform: str
     source_amplitude: float

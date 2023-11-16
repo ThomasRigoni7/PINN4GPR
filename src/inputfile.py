@@ -254,7 +254,7 @@ for line in data_file:
     def write_randomized(self, config: GprMaxConfig, seed: int|None = None):
         random.seed(seed)
         # general commands
-        self.write_general_commands(self.title, config.domain, config.spatial_resolution, config.delta_t, config.output_dir)
+        self.write_general_commands(self.title, config.domain, config.spatial_resolution, config.time_window, config.output_dir)
         # source and receiver
         self.write_source_receiver(config.source_waveform, config.source_central_frequency, 
                                    config.source_position, config.receiver_position, config.step_size)

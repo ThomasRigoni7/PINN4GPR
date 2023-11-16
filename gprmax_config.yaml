@@ -11,7 +11,7 @@ output_dir: "gprmax_output_files/"
 n_ascans: 2
 domain: [1.5, 1.73, 0.002]
 spatial_resolution: [0.002, 0.002, 0.002]
-delta_t: 2.5e-08
+time_window: 2.5e-08
 
 source_waveform: "ricker"
 source_amplitude: 1
