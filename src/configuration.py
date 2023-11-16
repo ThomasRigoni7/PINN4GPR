@@ -34,9 +34,8 @@ class GprMaxConfig(BaseModel):
 
     materials: dict[str, tuple[float, ...]]
 
-    layers: list[str]
-
     layer_sizes: tuple[float, float, float, float]
+    layer_deviations: tuple[float, float, float, float]
 
     sleepers_separation: float
     sleepers_material: list[str]

@@ -258,13 +258,20 @@ for line in data_file:
         # source and receiver
         self.write_source_receiver(config.source_waveform, config.source_central_frequency, 
                                    config.source_position, config.receiver_position, config.step_size)
-        # TODO: add materials
-        self.write_box_material("Gravel", config.materials["gravel"], (0, config.layer_sizes[0]))
-        self.write_box_material("Asphalt", config.materials["asphalt"], (config.layer_sizes[0], config.layer_sizes[1]))
-        self.write_pss(config.materials["pss"], (config.layer_sizes[1], config.layer_sizes[2]), config.fractal_dimension, config.pep_soil_number)
+        # randomize layer sizes
+        sizes = config.layer_sizes
+        noise = np.random.normal(0, config.layer_deviations)
+        layer_sizes = np.array(sizes) + noise
+        for i in range(1, len(layer_sizes)):
+            if layer_sizes[i] < layer_sizes[i-1]:
+                layer_sizes[i] = layer_sizes[i-1]
+
+        self.write_box_material("Gravel", config.materials["gravel"], (0, layer_sizes[0]))
+        self.write_box_material("Asphalt", config.materials["asphalt"], (layer_sizes[0], layer_sizes[1]))
+        self.write_pss(config.materials["pss"], (layer_sizes[1], layer_sizes[2]), config.fractal_dimension, config.pep_soil_number)
 
         fouling_level = round(random.random() * config.max_fouling_level, 2)
-        self.write_ballast(config.materials["ballast"], Path("/home/thomas/Desktop/ETH/tesi/PINN4GPR/gprmax_input_files/cirList_1.txt"), (config.layer_sizes[2], config.layer_sizes[3]), fouling_level, config.materials["fouling"],
+        self.write_ballast(config.materials["ballast"], Path("/home/thomas/Desktop/ETH/tesi/PINN4GPR/gprmax_input_files/cirList_1.txt"), (layer_sizes[2], layer_sizes[3]), fouling_level, config.materials["fouling"],
                            config.fractal_dimension, config.pep_soil_number)
 
         # SLEEPERS
@@ -275,7 +282,7 @@ for line in data_file:
         first_sleeper_position = round(random.random() * config.sleepers_separation - config.sleepers_size[0] + config.spatial_resolution[0], 2)
         all_sleepers_positions = []
         pos = first_sleeper_position
-        sleepers_y = config.layer_sizes[3] - 0.7*config.sleepers_size[1]
+        sleepers_y = layer_sizes[3] - 0.7* config.sleepers_size[1]
         while pos < config.domain[0]:
             all_sleepers_positions.append((pos, sleepers_y, 0))
             pos += config.sleepers_separation
