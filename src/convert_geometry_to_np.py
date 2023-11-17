@@ -25,7 +25,8 @@ def convert_geometry_to_np(filename: str | Path, output_file: str | Path | None 
     returns 'ret' (np.ndarray):
      - ret[0] contains the relative permittivity, 
      - ret[1] contains the conductivity,
-     - ret[2] contains the relative permeability.
+     - ret[2] contains the relative permeability,
+     - ret[3] contains the magnetic loss.
     """
     h5_path = Path(filename).with_suffix(".h5")
     txt_path = h5_path.with_name(h5_path.with_suffix("").name + "_materials").with_suffix(".txt")

@@ -1,7 +1,6 @@
 """
 Class responsible of writing the input file fed into gprMax
 """
-import random
 from pathlib import Path
 from typing import Iterable
 import numpy as np
@@ -156,7 +155,7 @@ class InputFile():
                 pep_soil_number: {pep_soil_number}"""
             self.write_command("soil_peplinski", list(fouling_peplinski_material) + ["fouling"])
             self.write_command("fractal_box", (0, position[1], 0, self.domain[0], position[1] + fouling_height, self.domain[2], 
-                                               fractal_dimension, 1, 1, 1, pep_soil_number, "fouling", "fouling_box", random.randint(0, 2**31)))
+                                               fractal_dimension, 1, 1, 1, pep_soil_number, "fouling", "fouling_box", self.random_generator.integers(0, 2**31)))
 
         # TODO: print script or all the stones?
         # script might be better for flexibility, but more difficult to reproduce if ballast files change
@@ -190,7 +189,7 @@ for line in data_file:
         self.write_command("soil_peplinski", list(pss_peplinski_material) + ["pss"])
 
         self.write_command("fractal_box", (0, position[0], 0, self.domain[0], position[1], self.domain[2], 
-                                           fractal_dimention, 1, 1, 1, pep_soil_number, "pss", "pss_box", random.randint(0, 2**31)))
+                                           fractal_dimention, 1, 1, 1, pep_soil_number, "pss", "pss_box", self.random_generator.integers(0, 2**31)))
         self.write_line()
     
     
@@ -232,54 +231,80 @@ for line in data_file:
     def write_rails(self, ):
         pass
 
-    def write_save_geometry(self, output_dir: str | Path):
+    def write_save_geometry(self, objects_dir: str | Path, view_dir: str | Path):
         """
         Write the 'geometry_objects_write' and the 'geometry_view' commands to file.
 
         Parameters:
-         - output_dir (str | Path): directory in which to place the output.
+         - objects_dir (str | Path): directory in which to place the geometry objects files.
+         - view_dir (str | Path): directory in which to place the geometry view file.
         """
-        output_dir = Path(output_dir)
+        objects_dir = Path(objects_dir)
+        view_dir = Path(view_dir)
 
         self.write_line("## Save geometry")
-        self.write_command("geometry_objects_write", (0, 0, 0, self.domain[0], self.domain[1], self.domain[2], output_dir / (self.title + "_geometry")))
+        self.write_command("geometry_objects_write", (0, 0, 0, self.domain[0], self.domain[1], self.domain[2], objects_dir / (self.title + "_geometry")))
         self.write_command("geometry_view", (0, 0, 0,
                                              self.domain[0], self.domain[1], self.domain[2], 
                                              self.spatial_resolution[0], self.spatial_resolution[1], self.spatial_resolution[2] , 
-                                             output_dir / (self.title + "_view"), "n"))
+                                             view_dir / (self.title + "_view"), "n"))
         self.write_line()
 
-        
+    def write_snapshots(self, output_basefilename: str | Path, time_steps: list[float]):
+        """
+        Write snapshot commands to file.
+
+        Parameters:
+         - output_basefilename (str | Path): output filename, the snapshots are automatically saved 
+         in the '{input_file_name}_snaps{n}' folder, where n is the model run (A-scan number).
+         - time_steps (lsit[float]): times at which to take the snapshots, in seconds.
+        """
+        self.write_line("##Snapshots")
+        for t in time_steps:
+            self.write_command("snapshot", (0, 0, 0, self.domain[0], self.domain[1], self.domain[2], 
+                                            self.spatial_resolution[0], self.spatial_resolution[1], self.spatial_resolution[2],
+                                            t, str(output_basefilename) + f"_{t}"))
+        self.write_line()
 
     def write_randomized(self, config: GprMaxConfig, seed: int|None = None):
-        random.seed(seed)
+        """
+        Writes an entire randomized gprMax input file on disk, based on the specified configuration.
+
+        Parameters:
+         - config (GprMaxConfig): configuration.
+         - seed (int | None): seed to use in the random number generators.
+        """
+        self.random_generator = np.random.default_rng(seed)
         # general commands
-        self.write_general_commands(self.title, config.domain, config.spatial_resolution, config.time_window, config.output_dir)
+        self.write_general_commands(self.title, config.domain, config.spatial_resolution, config.time_window, config.tmp_dir)
         # source and receiver
         self.write_source_receiver(config.source_waveform, config.source_central_frequency, 
                                    config.source_position, config.receiver_position, config.step_size)
         # randomize layer sizes
         sizes = config.layer_sizes
-        noise = np.random.normal(0, config.layer_deviations)
+        noise = self.random_generator.normal(0, config.layer_deviations)
         layer_sizes = np.array(sizes) + noise
         for i in range(1, len(layer_sizes)):
             if layer_sizes[i] < layer_sizes[i-1]:
                 layer_sizes[i] = layer_sizes[i-1]
 
+        # GRAVEL
         self.write_box_material("Gravel", config.materials["gravel"], (0, layer_sizes[0]))
+        # ASPHALT
         self.write_box_material("Asphalt", config.materials["asphalt"], (layer_sizes[0], layer_sizes[1]))
+        # BALLAST
         self.write_pss(config.materials["pss"], (layer_sizes[1], layer_sizes[2]), config.fractal_dimension, config.pep_soil_number)
 
-        fouling_level = round(random.random() * config.max_fouling_level, 2)
+        fouling_level = round(self.random_generator.random() * config.max_fouling_level, 2)
         self.write_ballast(config.materials["ballast"], Path("/home/thomas/Desktop/ETH/tesi/PINN4GPR/gprmax_input_files/cirList_1.txt"), (layer_sizes[2], layer_sizes[3]), fouling_level, config.materials["fouling"],
                            config.fractal_dimension, config.pep_soil_number)
 
         # SLEEPERS
         if "all" in config.sleepers_material:
             config.sleepers_material = ["steel", "concrete", "wood"]
-        sleepers_material_name = random.choice(config.sleepers_material)
+        sleepers_material_name = self.random_generator.choice(config.sleepers_material)
         # sleepers are placed on top of the ballast, with 70% of the sleepers submerged in it.
-        first_sleeper_position = round(random.random() * config.sleepers_separation - config.sleepers_size[0] + config.spatial_resolution[0], 2)
+        first_sleeper_position = round(self.random_generator.random() * config.sleepers_separation - config.sleepers_size[0] + config.spatial_resolution[0], 2)
         all_sleepers_positions = []
         pos = first_sleeper_position
         sleepers_y = layer_sizes[3] - 0.7* config.sleepers_size[1]
@@ -288,6 +313,11 @@ for line in data_file:
             pos += config.sleepers_separation
         self.write_sleepers(config.materials[sleepers_material_name], all_sleepers_positions, config.sleepers_size, sleepers_material_name)
 
+        # snapshots
+        if config.snapshot_times:
+            self.write_snapshots("snap", config.snapshot_times)
+        else:
+            self.write_line("## No snapshots\n")
 
         # save geometry
-        self.write_save_geometry(config.output_dir)
+        self.write_save_geometry(config.tmp_dir, config.output_dir)

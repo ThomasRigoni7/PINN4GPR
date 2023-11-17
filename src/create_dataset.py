@@ -54,6 +54,18 @@ def parse_arguments():
     args = parser.parse_args()
     return args
     
+def resolve_directories(config: GprMaxConfig):
+    """
+    Resolves and creates the input, tmp and output directories.
+    """
+    config.input_dir = config.input_dir.resolve()
+    config.tmp_dir = config.tmp_dir.resolve()
+    config.output_dir = config.output_dir.resolve()
+    config.input_dir.mkdir(exist_ok=True, parents=True)
+    config.tmp_dir.mkdir(exist_ok=True, parents=True)
+    config.output_dir.mkdir(exist_ok=True, parents=True)
+    
+
 def create_gprmax_input_files(config: GprMaxConfig):
     """
     Creates the input files needed from gprMax to run the simulations.
@@ -63,18 +75,15 @@ def create_gprmax_input_files(config: GprMaxConfig):
     The intermediate A-scans are set to be written in 'output_dir/tmp/'
     """
     
-    input_dir = config.input_dir
-    input_dir.mkdir(exist_ok=True, parents=True)
-    output_dir = config.output_dir
-    tmp_dir = (output_dir / "tmp").absolute()
     for file_number in tqdm(range(config.n_samples)):
         filename = f"scan_{str(file_number).zfill(4)}"
-        file_path = input_dir / filename
-
-        tmp_config = config.copy(update={"output_dir": tmp_dir}, deep=True)
+        file_path = config.input_dir / filename
 
         with InputFile(file_path.with_suffix(".in"), filename) as f:
-            f.write_randomized(tmp_config)
+            output_dir = config.output_dir / filename
+            output_dir.mkdir(exist_ok=True)
+            new_config = config.copy(update={"output_dir": output_dir}, deep=True)
+            f.write_randomized(new_config)
 
 ##############################################
 # Create a nostdout context
@@ -91,7 +100,7 @@ def nostdout():
     sys.stdout = save_stdout
 ###############################################
 
-def run_simulations(input_dir: str | Path, output_dir: str | Path, n_ascans:int, geometry_only: bool):
+def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str | Path, n_ascans:int, geometry_only: bool):
     """
     Runs the gprMax simulations specified inside the 'input_dir' folder and places its outputs in the 'output_dir' folder.
     Automatically combines the multiple A-scans created for each sample into a single B-scan file.
@@ -101,9 +110,8 @@ def run_simulations(input_dir: str | Path, output_dir: str | Path, n_ascans:int,
     If the 'geometry_only' parameter is set, only creates geometry files, without running the simulations.
     """
     input_dir = Path(input_dir)
+    tmp_dir = Path(tmp_dir)
     output_dir = Path(output_dir)
-    tmp_dir = output_dir/"tmp"
-    tmp_dir.mkdir(exist_ok=True, parents=True)
 
     for f in input_dir.glob("*.in"):
         # run sims
@@ -115,16 +123,24 @@ def run_simulations(input_dir: str | Path, output_dir: str | Path, n_ascans:int,
         # with nostdout():
         gprmax_run(str(f), n_ascans, geometry_fixed=True, geometry_only=geometry_only, gpu=[0])
 
+        output_files_basename = f.stem
+        sim_output_dir = output_dir / output_files_basename
         # merge output A-scans
-        output_files_basename = f.with_suffix("").name
         if not geometry_only:
             merged_output_file_name = output_files_basename + "_merged.out"
             merge_files(str(tmp_dir/ output_files_basename), removefiles=True)
-            (tmp_dir/merged_output_file_name).rename(output_dir/merged_output_file_name)
+            (tmp_dir/merged_output_file_name).rename(sim_output_dir/merged_output_file_name)
         
         # convert output geometry in numpy format and discard initial files
         h5_file_name = output_files_basename + "_geometry.h5"
-        convert_geometry_to_np(tmp_dir/h5_file_name, (output_dir/h5_file_name).with_suffix(".npy"), remove_files=True)
+        convert_geometry_to_np(tmp_dir/h5_file_name, (sim_output_dir/h5_file_name).with_suffix(".npy"), remove_files=True)
+
+        # move the snapshot files, which are created in the input folder
+        snapshot_dirs = input_dir.glob(f"{output_files_basename}_snaps*")
+        for d in snapshot_dirs:
+            d.replace(sim_output_dir/d.name)
+
+
 
 if __name__ == "__main__":
     args = parse_arguments()
@@ -138,8 +154,9 @@ if __name__ == "__main__":
     default_config.update({k:v for k, v in config.items() if v is not None})
     config = GprMaxConfig(**default_config)
 
+    resolve_directories(config)
 
     if config.generate_input:
         create_gprmax_input_files(config)
 
-    run_simulations(config.input_dir, config.output_dir, config.n_ascans, geometry_only=False)
+    run_simulations(config.input_dir, config.tmp_dir, config.output_dir, config.n_ascans, geometry_only=False)

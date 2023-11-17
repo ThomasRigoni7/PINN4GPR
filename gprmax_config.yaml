@@ -5,6 +5,7 @@ generate_input: false
 geometry_only: false
 
 input_dir: "gprmax_input_files/generated/"
+tmp_dir: "gprmax_tmp_dir/"
 output_dir: "gprmax_output_files/"
 
 # simulation configuration
@@ -46,3 +47,6 @@ sleepers_size: [0.17, 0.10, 0.002]
 max_fouling_level: 0.15
 max_fouling_water: 0.15
 max_pss_water: 0.15
+
+# wavefield snapshots
+snapshot_times: [0.5e-9, 1.0e-9, 1.5e-9, 2.0e-9, 2.5e-9, 3.0e-9, 3.5e-9, 4.0e-9, 4.5e-9, 5.0e-9]
