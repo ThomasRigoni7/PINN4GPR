@@ -9,7 +9,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../src"))
+sys.path.insert(0, os.path.abspath("../../src"))
 
 
 project = 'PINN4GPR '
@@ -32,3 +32,5 @@ exclude_patterns = []
 
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
+html_title = "PINN4GPR documentation"
+html_last_updated_fmt = '%b %d, %Y'
