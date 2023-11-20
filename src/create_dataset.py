@@ -112,6 +112,13 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
     input_dir = Path(input_dir)
     tmp_dir = Path(tmp_dir)
     output_dir = Path(output_dir)
+    # check if pycuda is installed, otherwise only use cpu
+    gpus = None
+    try:
+        import pycuda
+        gpus = [0]
+    except ImportError:
+        pass
 
     for f in input_dir.glob("*.in"):
         # run sims
@@ -121,7 +128,7 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
         # inside the global variable 
         # The grid is not visible outside of the module (file) it is defined in, so it is not possible to delete it only with the global keyword.
         # with nostdout():
-        gprmax_run(str(f), n_ascans, geometry_fixed=True, geometry_only=geometry_only, gpu=[0])
+        gprmax_run(str(f), n_ascans, geometry_fixed=True, geometry_only=geometry_only, gpu=gpus)
 
         output_files_basename = f.stem
         sim_output_dir = output_dir / output_files_basename

@@ -154,7 +154,7 @@ class InputFile():
                 Got fractal_dimension: {fractal_dimension},
                 pep_soil_number: {pep_soil_number}"""
             self.write_command("soil_peplinski", list(fouling_peplinski_material) + ["fouling"])
-            self.write_command("fractal_box", (0, position[1], 0, self.domain[0], position[1] + fouling_height, self.domain[2], 
+            self.write_command("fractal_box", (0, position[0], 0, self.domain[0], position[0] + fouling_height, self.domain[2], 
                                                fractal_dimension, 1, 1, 1, pep_soil_number, "fouling", "fouling_box", self.random_generator.integers(0, 2**31)))
 
         # TODO: print script or all the stones?
@@ -169,8 +169,14 @@ for line in data_file:
     cylinder(float(cir[0]), float(cir[1]), 0 , float(cir[0]), float(cir[1]), {self.domain[2]}, float(cir[2]), 'ballast', 'n')
 
 #end_python:"""
-
-        self.write_line(script)
+        # self.write_line(script)
+        from ballast_simulation import BallastSimulation
+        ballast_height = position[1] - position[0]
+        simulation = BallastSimulation((self.domain[0], ballast_height), buffer_y=0.4)
+        ballast_stones = simulation.run(random_generator=self.random_generator)
+        for stone in ballast_stones:
+            x, y, r = stone
+            self.write_command("cylinder", (x, y + position[0], 0, x, y + position[0], self.domain[2], r, "ballast", "n"))
         self.write_line()
         
 
@@ -256,8 +262,10 @@ for line in data_file:
 
         Parameters:
          - output_basefilename (str | Path): output filename, the snapshots are automatically saved 
-         in the '{input_file_name}_snaps{n}' folder, where n is the model run (A-scan number).
+            in the '{input_file_name}_snaps{n}' folder, where n is the model run (A-scan number).
          - time_steps (lsit[float]): times at which to take the snapshots, in seconds.
+
+        
         """
         self.write_line("##Snapshots")
         for t in time_steps:
