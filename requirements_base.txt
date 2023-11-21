@@ -1,0 +1,8 @@
+colorama==0.4.6
+Cython==3.0.5
+h5py==3.10.0
+jupyter==1.0.0
+matplotlib==3.8.2
+numpy==1.26.2
+psutil==5.9.6
+scipy==1.11.4

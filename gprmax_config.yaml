@@ -5,7 +5,7 @@ generate_input: false
 geometry_only: false
 
 input_dir: "gprmax_input_files/generated/"
-tmp_dir: "gprmax_tmp_dir/"
+tmp_dir: "gprmax_tmp_files/"
 output_dir: "gprmax_output_files/"
 
 # simulation configuration

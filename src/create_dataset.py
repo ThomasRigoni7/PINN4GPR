@@ -79,7 +79,7 @@ def create_gprmax_input_files(config: GprMaxConfig):
         with InputFile(file_path.with_suffix(".in"), filename) as f:
             output_dir = config.output_dir / filename
             output_dir.mkdir(exist_ok=True)
-            new_config = config.copy(update={"output_dir": output_dir}, deep=True)
+            new_config = config.model_copy(update={"output_dir": output_dir}, deep=True)
             f.write_randomized(new_config)
 
 ##############################################
