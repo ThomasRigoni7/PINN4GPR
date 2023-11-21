@@ -11,9 +11,6 @@ from pathlib import Path
 from tqdm import tqdm
 from yaml import safe_load
 
-from gprMax import run as gprmax_run
-from tools.outputfiles_merge import merge_files
-
 from convert_geometry_to_np import convert_geometry_to_np
 from inputfile import InputFile
 from configuration import GprMaxConfig
@@ -109,6 +106,8 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
 
     If the 'geometry_only' parameter is set, only creates geometry files, without running the simulations.
     """
+    from gprMax import run as gprmax_run
+    from tools.outputfiles_merge import merge_files
     input_dir = Path(input_dir)
     tmp_dir = Path(tmp_dir)
     output_dir = Path(output_dir)

@@ -1,6 +1,5 @@
 import numpy as np
 import h5py
-import matplotlib.pyplot as plt
 from pathlib import Path
 
 def parse_materials_file(file_path: str | Path):

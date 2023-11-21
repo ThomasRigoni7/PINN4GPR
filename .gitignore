@@ -1,5 +1,9 @@
 # Project-specific
 data/
+gprmax_input_files/generated/
+gprmax_tmp_files/
+gprmax_output_files/
+
 
 
 # Byte-compiled / optimized / DLL files

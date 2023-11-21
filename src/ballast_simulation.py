@@ -248,6 +248,6 @@ class BallastSimulation:
 
 if __name__ == "__main__":
     simulation = BallastSimulation((1.5, 0.4), buffer_y=0.4)
-    ballast_stones = simulation.run(display=False)
+    ballast_stones = simulation.run(display=True)
 
     print("Final number of ballast stones:", len(ballast_stones))

@@ -1,5 +1,4 @@
 import numpy as np
-from tools.outputfiles_merge import get_output_data
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 
@@ -8,7 +7,7 @@ def show_bscan(title: str, ax: Axes, data: np.ndarray, dt):
                 extent=(0, data.shape[1], data.shape[0] * dt, 0), 
                 interpolation='nearest', aspect='auto', cmap='seismic', 
                 vmin=-np.amax(np.abs(data)), vmax=np.amax(np.abs(data)))
-    ax.set_title("2D boxes")
+    ax.set_title(title)
     ax.set_xlabel('Trace number')
     ax.set_ylabel('Time [s]')
 
@@ -48,4 +47,5 @@ def initial_comparison():
     plt.show()
 
 if __name__ == "__main__":
+    from tools.outputfiles_merge import get_output_data
     initial_comparison()
