@@ -9,19 +9,39 @@ from configuration import GprMaxConfig
 
 class InputFile():
     """
-    Class responsible of writing the input file fed into gprMax.
+    Class responsible of writing the input file fed into gprMax. Provides various convenience methods to write different sections of the file.
+
+    Can be used as a context manager:
+
+    >>> with Inputfile(...) as f:
+    
+    this will automatically close the file at the end of the context.
+    
+    Parameters
+    ----------
+    file_path : str or Path
+        the path at which to create the input file
+    title : str
+        the title of the file (to write into the 'title' command to gprMax)
     """
     def __init__(self, 
                  file_path: str|Path,
                  title: str):
+        
         # open file
         self.f = open(Path(file_path).with_suffix(".in"), "w")
         self.title = title
     
     def __enter__(self):
+        """
+        Convenience method to use the class as a context manager.
+        """
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        Convenience method to use the class as a context manager.
+        """
         self.close()
 
     def close(self):
@@ -33,6 +53,13 @@ class InputFile():
     def write_command(self, command: str, args: Iterable):
         """
         Write the specified command to file, together with its arguments.
+
+        Parameters
+        ==========
+        command : str
+            the command name, whithout '#'
+        args : Iterable
+            an iterable of arguments to append to the command. These will be cast into strings
         """
         args = [str(a) for a in args]
         s = f"#{command}: {' '.join(args)} \n"
@@ -41,6 +68,11 @@ class InputFile():
     def write_line(self, line: str = ""):
         """
         Write the line to file, followed by \\n.
+
+        Parameters
+        ==========
+        line : str, optional
+            line to write, default: ""
         """
         self.f.write(line + "\n")
 
@@ -48,31 +80,37 @@ class InputFile():
                                title: str, 
                                domain: tuple[float, float, float], 
                                spatial_resolution: tuple[float, float, float],
-                               delta_t: float,
+                               time_window: float,
                                output_dir: str | Path
                                ):
         """
-        Write general commands to file, such as:
-         - title
-         - domain size (in meters)
-         - spatial resolution (in meters)
-         - temporal resolution (in seconds)
-         - output directory
+        Write the general commands to file.
 
-        Called directly by the class constructor, so no need to call it again.
+        Parameters
+        ----------
+        title : str
+            the simulation's title
+        domain : tuple[float, float, float]
+            domain size of the simulation (in meters)
+        spatial_resolution : tuple[float, float, float]
+            spatial resolution of the simulation (in meters)
+        time_window : float
+            duration of the simulation for each A-scan (in seconds)
+        output_dir : str | Path
+            output directory
         """
         assert len(domain) == 3, f"Domain must be a tuple of 3 floats, got {domain}"
         assert len(spatial_resolution) == 3, f"The spatial resolution must be a tuple of 3 floats, got {spatial_resolution}"
 
         self.domain = domain
         self.spatial_resolution = spatial_resolution
-        self.delta_t = delta_t
+        self.delta_t = time_window
 
         self.write_line("## General commands:")
         self.write_command("title", [title])
         self.write_command("domain", domain)
         self.write_command("dx_dy_dz", spatial_resolution)
-        self.write_command("time_window", [delta_t])
+        self.write_command("time_window", [time_window])
         self.write_command("output_dir", [str(output_dir)])
         self.write_line()
 
@@ -85,12 +123,18 @@ class InputFile():
         """
         Writes the source and receiver commands to file.
 
-        Parameters:
-         - waveform_name (str): name of the waveform, e.g. 'ricker', 'gaussian'...
-         - source_central_frequency (int|float): central frequency of the source waveform.
-         - source_position (tuple[float]): position of the source hertzian dipole in space.
-         - receiver position (tuple[float]): position of the receiver in space.
-         - step_size (tuple[float]): space increments to move the source and receiver between the different A-scans.
+        Parameters
+        ----------
+        waveform_name : str
+            name of the waveform, e.g. 'ricker', 'gaussian'...
+        source_central_frequency : int|float
+            central frequency of the source waveform.
+        source_position : tuple[float, float, float]
+            position of the source hertzian dipole in space.
+        receiver_position : tuple[float, float, float]
+            position of the receiver in space.
+        step_size : tuple[float, float, float]
+            space increments to move the source and receiver between the different A-scans.
         """
 
         assert len(source_position) == 3, f"Source position should contain 3 (x,y,z) floats, got {source_position}"
@@ -109,8 +153,11 @@ class InputFile():
         """
         Writes multiple #material commands to file.
 
-        'materials' is a list containing the materials. Each material is represented as a tuple of (name, properties), 
-        where properties is a tuple containing the 4 physical properties of the material.
+        Parameters
+        ==========
+        materials : list[tuple[str, tuple[float]]] 
+            list containing the materials. Each material is represented as a tuple of (name, properties), 
+            where properties is a tuple containing the 4 physical properties of the material.
         """
         self.write_line("## Materials:")
         for mat in materials:
@@ -121,7 +168,6 @@ class InputFile():
 
     def write_ballast(self, 
                       ballast_material: tuple[float, float, float, float], 
-                      ballast_file: str|Path,
                       position: tuple[float],
                       fouling_height: float = None,
                       fouling_peplinski_material: list|tuple = None,
@@ -130,15 +176,23 @@ class InputFile():
                       ):
         """
         Write to file the commands related to ballast stones and its associated fouling.
+        
+        The ballast position is generated on the fly, using a pymunk simulation. See :class:`.BallastSimulation`.
 
-        Parameters:
-         - ballast_material (list|tuple): material composing the ballast.
-         - ballast_file (str|Path): path to the file containing the ballast stones position and radii.
-         - position (tuple[float]): initial and final height in meters of the ballast layer from the bottom of the model.
-         - fouling height (float): height of the fouling in meters, from the bottom of the ballast layer.
-         - fouling_peplinski_material (list|tuple): fouling peplinski material
-         - fractal_dimension (float): fractal dimension of the box representing the fouling.
-         - pep_soil_number (int): number of different peplinski fractal materials composing the fouling layer.
+        Parameters
+        ----------
+        ballast_material : list | tuple 
+            material composing the ballast.
+        position : tuple[float]
+            initial and final height in meters of the ballast layer from the bottom of the model.
+        fouling_height : float
+            height of the fouling in meters, from the bottom of the ballast layer.
+        fouling_peplinski_material : list | tuple
+            fouling peplinski material
+        fractal_dimension : float
+            fractal dimension of the box representing the fouling.
+        pep_soil_number : int
+            number of different peplinski fractal materials composing the fouling layer.
         """
         assert len(ballast_material) == 4, f"Ballast material is specified by 4 float arguments, but {ballast_material} given."
 
@@ -157,19 +211,6 @@ class InputFile():
             self.write_command("fractal_box", (0, position[0], 0, self.domain[0], position[0] + fouling_height, self.domain[2], 
                                                fractal_dimension, 1, 1, 1, pep_soil_number, "fouling", "fouling_box", self.random_generator.integers(0, 2**31)))
 
-        # TODO: print script or all the stones?
-        # script might be better for flexibility, but more difficult to reproduce if ballast files change
-        # all the stones make the files long and difficult to debug
-        script = f"""#python: 
-from gprMax.input_cmd_funcs import *
-
-data_file = open("{ballast_file}",'r')
-for line in data_file:
-    cir = line.split()
-    cylinder(float(cir[0]), float(cir[1]), 0 , float(cir[0]), float(cir[1]), {self.domain[2]}, float(cir[2]), 'ballast', 'n')
-
-#end_python:"""
-        # self.write_line(script)
         from ballast_simulation import BallastSimulation
         ballast_height = position[1] - position[0]
         simulation = BallastSimulation((self.domain[0], ballast_height), buffer_y=0.4)
@@ -180,26 +221,43 @@ for line in data_file:
         self.write_line()
         
 
-    def write_pss(self, pss_peplinski_material: list|tuple, position:tuple[float, float], fractal_dimention: float, pep_soil_number: int):
+    def write_pss(self, pss_peplinski_material: list|tuple, position:tuple[float, float], fractal_dimension: float, pep_soil_number: int):
         """
         Writes the pss layer into file.
 
-        Parameters:
-         - pss_peplinski_material (list|tuple): peplinski material for the PSS layer.
-         - position (tuple[float, float]): start and end y of the PSS layer.
-         - fractal_dimension (float): fractal dimension of the box representing the PSS.
-         - pep_soil_number (int): number of different peplinski fractal materials composing the PSS layer.
+        Parameters
+        ----------
+        pss_peplinski_material : list | tuple
+            peplinski material for the PSS layer
+        position : tuple[float, float]
+            start and end y of the PSS layer.
+        fractal_dimension : float
+            fractal dimension of the box representing the PSS.
+        pep_soil_number : int
+            number of different peplinski fractal materials composing the PSS layer.
         """
         assert len(pss_peplinski_material) == 6, f"peplinski soil material is specified by 6 float arguments, but {pss_peplinski_material} given."
         self.write_line("## PSS:")
         self.write_command("soil_peplinski", list(pss_peplinski_material) + ["pss"])
 
         self.write_command("fractal_box", (0, position[0], 0, self.domain[0], position[1], self.domain[2], 
-                                           fractal_dimention, 1, 1, 1, pep_soil_number, "pss", "pss_box", self.random_generator.integers(0, 2**31)))
+                                           fractal_dimension, 1, 1, 1, pep_soil_number, "pss", "pss_box", self.random_generator.integers(0, 2**31)))
         self.write_line()
     
     
     def write_box_material(self, name: str, material: list|tuple, position: tuple[float, float]):
+        """
+        Writes the commands associated with a box material.
+
+        Parameters
+        ----------
+        name : str
+            the name of the material
+        material : list | tuple
+            the material phisical values
+        position : tuple[float, float]
+            initial and final y coordinate of the box
+        """
         assert len(material) == 4, f"Material is specified by 4 float arguments, but {material} given."
         self.write_line(f"## {name}:")
         self.write_command("material", list(material) + [name.lower()])
@@ -207,9 +265,19 @@ for line in data_file:
         self.write_command("box", (0, position[0], 0, self.domain[0], position[1], self.domain[2], name.lower()))
         self.write_line()
 
-    def clip_into_domain(self, coords: tuple[float, float, float]) -> tuple[float, float, float]:
+    def _clip_into_domain(self, coords: tuple[float, float, float]) -> tuple[float, float, float]:
         """
-        Clips coordinates into the domain
+        Clips coordinates into the domain.
+
+        Parameters
+        ----------
+        coords : tuple[float, float, float]
+            coordinates to clip
+
+        Returns
+        -------
+        tuple[float, float, float]
+            the clipped coordinates inside the domain
         """
         coords = np.clip(coords, (0, 0, 0), self.domain)
         return (coords[0], coords[1], coords[2])
@@ -219,31 +287,48 @@ for line in data_file:
         """
         Write to file the sleepers.
 
-        Parameters:
-         - material (list|tuple): material composing the sleepers.
-         - position (list[tuple]): list of (x,y,z) position of the sleepers in meters, representing their bottom-left corner.
-         - size (tuple[float]): (x, y, z) size of the sleepers in meters.
+        Parameters
+        ----------
+        material : list|tuple
+            material composing the sleepers.
+        position : list[tuple]
+            list of (x,y,z) position of the sleepers in meters, representing their bottom-left corner.
+        size : tuple[float, float, float]
+            (x, y, z) size of the sleepers in meters.
+        material_name : str, default: None
+            name of the sleepers material.
         """
         self.write_line("## Sleepers:")
         material_name = "sleepers_material" if material_name is None else f"{material_name}_sleepers"
         self.write_command("material", list(material) + [material_name])
         for p in position:
-            p = self.clip_into_domain(p)
-            p_end = self.clip_into_domain((p[0] + size[0], p[1] + size[1], p[1] + size[2]))
+            p = self._clip_into_domain(p)
+            p_end = self._clip_into_domain((p[0] + size[0], p[1] + size[1], p[1] + size[2]))
             self.write_command("box", (*p, *p_end, material_name))
         
         self.write_line()
 
     def write_rails(self, ):
-        pass
+        """
+        Writes to file the rails. Not implemented.
+
+        Raises
+        ------
+        NotImplementedError
+            Not implemented.
+        """
+        raise NotImplementedError("Writing rails not implemented!")
 
     def write_save_geometry(self, objects_dir: str | Path, view_dir: str | Path):
         """
         Write the 'geometry_objects_write' and the 'geometry_view' commands to file.
 
-        Parameters:
-         - objects_dir (str | Path): directory in which to place the geometry objects files.
-         - view_dir (str | Path): directory in which to place the geometry view file.
+        Parameters
+        ----------
+        objects_dir : str | Path
+            directory in which to place the geometry objects files.
+        view_dir : str | Path
+            directory in which to place the geometry view file.
         """
         objects_dir = Path(objects_dir)
         view_dir = Path(view_dir)
@@ -260,12 +345,13 @@ for line in data_file:
         """
         Write snapshot commands to file.
 
-        Parameters:
-         - output_basefilename (str | Path): output filename, the snapshots are automatically saved 
+        Parameters
+        ----------
+        output_basefilename : str | Path
+            output filename, the snapshots are automatically saved 
             in the '{input_file_name}_snaps{n}' folder, where n is the model run (A-scan number).
-         - time_steps (lsit[float]): times at which to take the snapshots, in seconds.
-
-        
+        time_steps : list[float] 
+            times at which to take the snapshots, in seconds.
         """
         self.write_line("##Snapshots")
         for t in time_steps:
@@ -278,9 +364,12 @@ for line in data_file:
         """
         Writes an entire randomized gprMax input file on disk, based on the specified configuration.
 
-        Parameters:
-         - config (GprMaxConfig): configuration.
-         - seed (int | None): seed to use in the random number generators.
+        Parameters
+        ----------
+        config : GprMaxConfig
+            configuration.
+        seed : int | None, optional
+            seed to use in the random number generators.
         """
         self.random_generator = np.random.default_rng(seed)
         # general commands
@@ -304,7 +393,7 @@ for line in data_file:
         self.write_pss(config.materials["pss"], (layer_sizes[1], layer_sizes[2]), config.fractal_dimension, config.pep_soil_number)
 
         fouling_level = round(self.random_generator.random() * config.max_fouling_level, 2)
-        self.write_ballast(config.materials["ballast"], Path("/home/thomas/Desktop/ETH/tesi/PINN4GPR/gprmax_input_files/cirList_1.txt"), (layer_sizes[2], layer_sizes[3]), fouling_level, config.materials["fouling"],
+        self.write_ballast(config.materials["ballast"], (layer_sizes[2], layer_sizes[3]), fouling_level, config.materials["fouling"],
                            config.fractal_dimension, config.pep_soil_number)
 
         # SLEEPERS

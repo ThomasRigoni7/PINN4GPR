@@ -115,3 +115,4 @@ typing-extensions==4.8.0
     #   pydantic-core
 urllib3==2.1.0
     # via requests
+numpydoc==1.6.0

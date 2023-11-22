@@ -4,10 +4,9 @@ Utility class to hold the configurations
 from pydantic import BaseModel
 from pathlib import Path
 
-class GprMaxConfig(BaseModel):
+class GprMaxConfig(BaseModel):  # numpydoc ignore=PR01
     """
-    Configuration for the GPR dataset creation script in create_dataset.py,
-    the value types are automatically checked by pydantic.
+    Utility class to hold the configuration gprMax configuration to generate a dataset.
     """
     # general config
     n_samples: int

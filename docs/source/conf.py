@@ -20,12 +20,48 @@ release = '0.1.0'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ["sphinx.ext.todo", "sphinx.ext.viewcode", "sphinx.ext.autodoc"]
+extensions = ["sphinx.ext.todo", 
+              "sphinx.ext.viewcode", 
+              "sphinx.ext.autodoc",
+              "numpydoc",
+              "sphinx.ext.intersphinx"
+              ]
 
 templates_path = ['_templates']
 exclude_patterns = []
 
+# Example configuration for intersphinx: refer to the Python standard library.
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "numpy": ("https://numpy.org/doc/stable", None),
+}
 
+nitpicky = True
+nitpick_ignore = [
+    ("py:class", "pathlib.Path"),
+    ("py:class", "numpy.ndarray"),
+    ("py:class", "pymunk.space.Space"),
+    ("py:class", "numpy.random._generator.Generator"),
+    ("py:class", "matplotlib.axes._axes.Axes")
+]
+
+
+numpydoc_class_members_toctree = False
+numpydoc_validation_checks = {"all", "GL02", "SS01", "SS02", "SS03", "SS05", "SS06", "ES01", "PR08", "PR09", "RT04", "RT05", "SA01", "EX01", "RT02"}
+
+
+# exclude classes and members that should not be documented
+autodoc_default_options = {
+    'exclude-members': "model_config, model_fields"
+}
+numpydoc_show_inherited_class_members = {
+    "configuration.GprMaxConfig": False
+}
+
+html_theme_options = {
+    'globaltoc_collapse': True,  # as default
+    'globaltoc_maxdepth': -1,
+}
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

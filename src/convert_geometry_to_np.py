@@ -2,7 +2,10 @@ import numpy as np
 import h5py
 from pathlib import Path
 
-def parse_materials_file(file_path: str | Path):
+def _parse_materials_file(file_path: str | Path) -> list:
+    """
+    Parses the geometry materials file.
+    """
     with open(file_path, "r") as f:
         materials = f.read().splitlines()
 
@@ -14,23 +17,28 @@ def convert_geometry_to_np(filename: str | Path, output_file: str | Path | None 
     """
     Converts the given geometry and materials files into numpy arrays of shape [4, height, width].
 
-    args:
-        - filename (str or Path) : filename of the h5 file containing the geometry. 
-            The materials file must be in the same folder and named the same, adding "_materials.txt"
-        - output_file (str ot Path): output file to store the result in .npy format. 
-            If 'None', then does not write to disk, but returns the array.
-        - remove_files (bool): if set, deletes the initial h5 and txt files.
+    Parameters
+    ----------
+    filename : str | Path
+        filename of the h5 file containing the geometry. The materials file must be 
+        in the same folder and named the same, adding "_materials.txt"
+    output_file : str | Path, default: None
+        output file to store the result in .npy format. If 'None', then does not write to disk, but returns the array.
+    remove_files : bool, default: False
+        if set, deletes the initial h5 and txt files.
 
-    returns 'ret' (np.ndarray):
-     - ret[0] contains the relative permittivity, 
-     - ret[1] contains the conductivity,
-     - ret[2] contains the relative permeability,
-     - ret[3] contains the magnetic loss.
+    Returns
+    -------
+    ret : np.ndarray
+        - `ret[0]` contains the relative permittivity, 
+        - `ret[1]` contains the conductivity,
+        - `ret[2]` contains the relative permeability,
+        - `ret[3]` contains the magnetic loss.
     """
     h5_path = Path(filename).with_suffix(".h5")
     txt_path = h5_path.with_name(h5_path.with_suffix("").name + "_materials").with_suffix(".txt")
 
-    materials = parse_materials_file(txt_path)
+    materials = _parse_materials_file(txt_path)
 
     h5_file = h5py.File(h5_path)
     data = np.array(h5_file["data"]).squeeze()

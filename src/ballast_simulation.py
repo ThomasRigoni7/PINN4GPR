@@ -9,6 +9,17 @@ class BallastSimulation:
     First samples a specific distribution of ballast radii from the given intervals, then uses the 
     Random Sequential Absorption algorithm to randomly create the ballast stones inside the space, 
     then runs a pymunk gravity simulation to compact the agglomerates.
+    
+    Parameters
+    ----------
+    domain_size : tuple[float, float]
+        (x, y) size of the simulation.
+    radii_distribution : np.ndarray, default: None
+        radii distribution to use in the RSA algorithm. If None, the default distribution will be used
+    buffer_y : float, default: 0
+        bonus y size of the simulation to account for compacting the voids. Not shown in the visualization
+    verbose : bool
+        if `True`, print debug info. Default: `False`
     """
 
     def __init__(self,
@@ -16,18 +27,6 @@ class BallastSimulation:
                  radii_distribution: np.ndarray = None, 
                  buffer_y: float = 0,
                  verbose: bool = False):
-        """
-        Creates a BallastSimulation object. 
-        
-        Parameters
-        ==========
-        domain_size : tuple[float, float]
-            (x, y) size of the simulation.
-        radii_distribution : np.ndarray (optional)
-            radii distribution to use in the RSA algorithm. If None, the default distribution will be used. Default=None.
-        buffer_y : float (optional)
-            bonus y size of the simulation to account for compacting the voids. Not shown in the visualization. Default=0.   
-        """
         self.domain_size = domain_size
         self.radii_distribution = radii_distribution
         if radii_distribution == None:
@@ -57,7 +56,9 @@ class BallastSimulation:
 
     def sample_radii_distribution(self, sieve_diameter_bounds: np.ndarray) -> np.ndarray:
         """
-        Picks a random radii distribution from the diameter bounds provided by sampling from a beta distribution for each sieve.
+        Picks a random radii distribution.
+         
+        The distribution is picked from the diameter bounds provided by sampling from a beta distribution for each sieve.
 
         Parameters
         ----------
@@ -75,7 +76,6 @@ class BallastSimulation:
         np.ndarray of shape (n_sieves - 1, 3)
             the sampled distribution, where each entry is [radius_max, radius_min, required_mass].
             The required masses sum to 1.
-
         """
         # keep the diameter and initalize matrix
         grad_curve = sieve_diameter_bounds[:,[0,1]]
@@ -97,19 +97,18 @@ class BallastSimulation:
                                      mult_factor: float,
                                      random_generator: np.random.Generator = None) -> pymunk.Space:
         """
-        Uses the Random Sequential Absorption algorithm to randomly create the ballast stones inside the space,
-        based on the curve specified.
+        Use the Random Sequential Absorption algorithm to randomly create the ballast stones inside the space.
 
         Parameters
         ----------
         space : pymunk.Space
             space in which to place the circles.
-        required_void: float
+        required_void : float
             fraction of void surface to fill before returning.
         mult_factor : float
             multiplication factor to use in the pymunk space for visualization purposes.
-        random_generator: np.random.Generator (optional)
-            random generator to use in the RSA algorithm. If None, creates a new generator. Default=None.
+        random_generator : np.random.Generator, default: None
+            random generator to use in the RSA algorithm. If None, creates a new generator.
 
         Returns
         -------
@@ -153,7 +152,6 @@ class BallastSimulation:
              mult_factor: float):
         """
         Internal function that runs the simulation. Use `run()` instead.
-        
         """
         if display:
             import pygame
@@ -188,7 +186,9 @@ class BallastSimulation:
             display: bool = False,
             random_generator: np.random.Generator = None):
         """
-        Runs the siumlation: First generates circular ballast stones positions 
+        Run the siumlation.
+        
+        First generates circular ballast stones positions 
         and radii by using a random sequential absorption (RSA) algorithm, 
         then uses a 2D physics simulation from pymunk to aggregate them.
         
@@ -199,16 +199,15 @@ class BallastSimulation:
             the circles are compacted, but require more computation.
         time_step : float (optional)
             time step at which to run the simulation. Smaller steps mean more precise simulation, but more computations.
-        display: bool (optional)
-            Flag to set if the simulation should be displayed inside a pygame window. Default=False.
-        random_generator: np.random.Generator (optional)
-            random generator to use in the RSA algorithm. If None, creates a new generator. Default=None.
+        display : bool, default: False
+            Flag to set if the simulation should be displayed inside a pygame window.
+        random_generator : np.random.Generator, default: False
+            random generator to use in the RSA algorithm. If None, creates a new generator.
             
         Returns
         =======
         np.ndarray of shape [n_circles, 3]
             Circle positions and radii: each item is of the form [x_position, y_position, radius]
-        
         """
         space = pymunk.Space()
         space.gravity = 0,-981

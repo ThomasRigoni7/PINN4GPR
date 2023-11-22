@@ -16,7 +16,10 @@ from inputfile import InputFile
 from configuration import GprMaxConfig
 
 
-def parse_arguments():
+def _parse_arguments():
+    """
+    Parses the arguments and returns the derived Namespace.
+    """
     
     parser = argparse.ArgumentParser()
 
@@ -51,7 +54,7 @@ def parse_arguments():
     args = parser.parse_args()
     return args
     
-def resolve_directories(config: GprMaxConfig):
+def _resolve_directories(config: GprMaxConfig):
     """
     Resolves and creates the input, tmp and output directories.
     """
@@ -70,6 +73,11 @@ def create_gprmax_input_files(config: GprMaxConfig):
     Each file also includes geometry save commands to retain the built geometry.
 
     The intermediate A-scans are set to be written in 'output_dir/tmp/'
+
+    Parameters
+    ----------
+    config : GprMaxConfig
+        gprMax configuration
     """
     
     for file_number in tqdm(range(config.n_samples)):
@@ -86,13 +94,13 @@ def create_gprmax_input_files(config: GprMaxConfig):
 # Create a nostdout context
 import contextlib
 import sys
-class DummyFile(object):
+class _DummyFile(object):
     def write(self, x): pass
 
 @contextlib.contextmanager
-def nostdout():
+def _nostdout():
     save_stdout = sys.stdout
-    sys.stdout = DummyFile()
+    sys.stdout = _DummyFile()
     yield
     sys.stdout = save_stdout
 ###############################################
@@ -105,6 +113,19 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
     Additionally creates gprMax geometry files corresponding to each input file and converts them into numpy format.
 
     If the 'geometry_only' parameter is set, only creates geometry files, without running the simulations.
+
+    Parameters
+    ----------
+    input_dir : str | Path
+        directory in which to find the fprMax input .in files
+    tmp_dir : str | Path
+        directory in which to store the intermediate results
+    output_dir : str | Path
+        directory in which to store the output
+    n_ascans : int
+        number of A-scans for each generated B-scan
+    geometry_only : bool
+        if True, gprMax will not rebuild the geometry for every A-scan, but only at the beginning of the B-scan.
     """
     from gprMax import run as gprmax_run
     from tools.outputfiles_merge import merge_files
@@ -126,7 +147,7 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
         # This can be fixed by adding a condition inside gprmax that checks if the model (A-scan) is the last one and deletes the grid 
         # inside the global variable 
         # The grid is not visible outside of the module (file) it is defined in, so it is not possible to delete it only with the global keyword.
-        # with nostdout():
+        # with _nostdout():
         gprmax_run(str(f), n_ascans, geometry_fixed=True, geometry_only=geometry_only, gpu=gpus)
 
         output_files_basename = f.stem
@@ -149,7 +170,7 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
 
 
 if __name__ == "__main__":
-    args = parse_arguments()
+    args = _parse_arguments()
 
     config = vars(args)
 
@@ -160,7 +181,7 @@ if __name__ == "__main__":
     default_config.update({k:v for k, v in config.items() if v is not None})
     config = GprMaxConfig(**default_config)
 
-    resolve_directories(config)
+    _resolve_directories(config)
 
     if config.generate_input:
         create_gprmax_input_files(config)
