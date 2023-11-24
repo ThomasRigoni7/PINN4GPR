@@ -1,3 +1,7 @@
+"""
+This module contains utility functions to convert results of the gprMax computation into numpy ndarrays.
+"""
+
 import numpy as np
 import h5py
 from pathlib import Path

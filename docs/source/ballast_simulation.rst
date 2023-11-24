@@ -1,7 +1,7 @@
 ballast\_simulation module
 ==========================
 
-.. automodule:: ballast_simulation
+.. automodule:: dataset_creation.ballast_simulation
    :members:
    :undoc-members:
    :show-inheritance:

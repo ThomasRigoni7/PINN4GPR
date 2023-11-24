@@ -1,6 +1,6 @@
 configuration module
 ====================
 
-.. automodule:: configuration
+.. automodule:: dataset_creation.configuration
    :members:
    :undoc-members:

@@ -1,7 +1,7 @@
-convert\_geometry\_to\_np module
+convert\_to\_np module
 ================================
 
-.. automodule:: convert_geometry_to_np
+.. automodule:: dataset_creation.convert_to_np
    :members:
    :undoc-members:
    :show-inheritance:

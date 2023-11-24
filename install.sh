@@ -4,8 +4,8 @@
 git clone git@github.com:gprMax/gprMax.git gprmax_repo
 
 # create and activate the virtualenv
-virtualenv .gpr_venv
-source .gpr_venv/bin/activate
+virtualenv .venv
+source .venv/bin/activate
 
 # install the packages necessary to install gprmax
 pip install -r requirements_base.txt

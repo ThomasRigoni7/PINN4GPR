@@ -1,7 +1,7 @@
 create\_dataset module
 ======================
 
-.. automodule:: create_dataset
+.. automodule:: dataset_creation.create_dataset
    :members:
    :undoc-members:
    :show-inheritance:

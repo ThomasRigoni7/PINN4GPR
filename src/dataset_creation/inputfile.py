@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Iterable
 import numpy as np
 
-from configuration import GprMaxConfig
+from .configuration import GprMaxConfig
+from .ballast_simulation import BallastSimulation
 
 class InputFile():
     """
@@ -211,7 +212,6 @@ class InputFile():
             self.write_command("fractal_box", (0, position[0], 0, self.domain[0], position[0] + fouling_height, self.domain[2], 
                                                fractal_dimension, 1, 1, 1, pep_soil_number, "fouling", "fouling_box", self.random_generator.integers(0, 2**31)))
 
-        from ballast_simulation import BallastSimulation
         ballast_height = position[1] - position[0]
         simulation = BallastSimulation((self.domain[0], ballast_height), buffer_y=0.4)
         ballast_stones = simulation.run(random_generator=self.random_generator)

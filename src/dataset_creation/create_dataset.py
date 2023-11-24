@@ -11,9 +11,9 @@ from pathlib import Path
 from tqdm import tqdm
 from yaml import safe_load
 
-from convert_geometry_to_np import convert_geometry_to_np
-from inputfile import InputFile
-from configuration import GprMaxConfig
+from .convert_to_np import convert_geometry_to_np
+from .inputfile import InputFile
+from .configuration import GprMaxConfig
 
 
 def _parse_arguments():
@@ -47,9 +47,9 @@ def _parse_arguments():
     parser.add_argument("-max_fouling_level", type=float,
                         help="Maximum ballast fouling height in meters, measured from the pss layer interface.")
     parser.add_argument("-max_fouling_water", type=float,
-                        help="Maximum percentage of water in fouling material between ballast stones. Default 0.15 means 15%.")
+                        help="Maximum percentage of water in fouling material between ballast stones. Default 0.15 means 15%%.")
     parser.add_argument("-max_pss_water", type=float,
-                        help="Maximum percentage of water in the pss material. Default 0.15 means 15%.")
+                        help="Maximum percentage of water in the pss material. Default 0.15 means 15%%.")
     
     args = parser.parse_args()
     return args

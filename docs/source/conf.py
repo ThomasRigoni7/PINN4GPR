@@ -55,11 +55,11 @@ autodoc_default_options = {
     'exclude-members': "model_config, model_fields"
 }
 numpydoc_show_inherited_class_members = {
-    "configuration.GprMaxConfig": False
+    "dataset_creation.configuration.GprMaxConfig": False
 }
 
 html_theme_options = {
-    'globaltoc_collapse': True,  # as default
+    'globaltoc_collapse': False,  # True as default
     'globaltoc_maxdepth': -1,
 }
 
