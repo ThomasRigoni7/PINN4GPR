@@ -1,0 +1,51 @@
+## General comands
+#title: 2D_cylinders_clean 
+#domain: 1.5 1.73 0.002 
+#dx_dy_dz: 0.002 0.002 0.002
+#time_window: 2.5e-08 
+#output_dir: output/2D_cylinders_pep/
+#messages: n
+
+## Source:
+#waveform: ricker 1 1000000000.0 my_ricker 
+#hertzian_dipole: z 0.2 1.53 0.001 my_ricker 
+#rx: 0.35 1.53 0.001 
+#src_steps: 0.02 0 0 
+#rx_steps: 0.02 0 0 
+
+##geometry_view: 0 0 0 1.5 1.73 0.002 0.002 0.002 0.002 2D_cylinders_clean_geom n 
+
+## Materials:
+#material: 6.5 0 1 0 ballast 
+#material: 7 0 1 0 dry_sand 
+#material: 8 0.01 1 0 concrete 
+#material: 2 0.01 1 0 dry_wood 
+#material: 8 0.01 1 0 asphalt 
+#material: 5 0 1 0 gravel 
+#soil_peplinski: 0.9 0.1 2 2.66 0.001 0.005 pss 
+
+## Ballast:
+
+#python: 
+from gprMax.input_cmd_funcs import *
+import os
+
+data_file = open("gprmax_input_files/initial_comparison/cirList_1.txt",'r')
+for line in data_file:
+    cir = line.split()
+    cylinder(float(cir[0]), float(cir[1]), 0 , float(cir[0]), float(cir[1]), 0.002, float(cir[2]), 'ballast')
+
+#end_python:
+#box: 0 0.8 0 1.5 1.73 0.002 free_space 
+
+## Subgrade:
+#fractal_box: 0 0.3 0 1.5 0.55 0.002 1.5 1 1 1 5 pss my_pss 
+#add_surface_roughness: 0 0.55 0 1.5 0.55 0.002 1.5 1 1 0.54 0.56 my_pss 
+#fractal_box: 0 0.15 0 1.5 0.3 0.002 1.5 1 1 1 1 asphalt my_asphalt 
+#add_surface_roughness: 0 0.3 0 1.5 0.3 0.002 1.5 1 1 0.296 0.304 my_asphalt 
+#fractal_box: 0 0 0 1.5 0.15 0.002 1.5 1 1 1 1 gravel my_gravel 
+#add_surface_roughness: 0 0.15 0 1.5 0.15 0.002 1.5 1 1 0.146 0.154 my_gravel 
+
+## Sleepers:
+#box: 0.3 0.73 0 0.47 0.83 0.002 concrete 
+#box: 1.0 0.73 0 1.17 0.83 0.002 concrete 
