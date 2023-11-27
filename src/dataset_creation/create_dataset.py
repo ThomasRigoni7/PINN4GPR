@@ -86,7 +86,6 @@ def create_gprmax_input_files(config: GprMaxConfig):
 
         with InputFile(file_path.with_suffix(".in"), filename) as f:
             output_dir = config.output_dir / filename
-            output_dir.mkdir(exist_ok=True)
             new_config = config.model_copy(update={"output_dir": output_dir}, deep=True)
             f.write_randomized(new_config)
 
@@ -142,16 +141,12 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
 
     for f in input_dir.glob("*.in"):
         # run sims
-        # TODO: the gprmax run is not idempotent: if run multiple times, the grid does not get deleted, 
-        # but persists, so gprMax either runs the same model twice, or continues with the already generated model. 
-        # This can be fixed by adding a condition inside gprmax that checks if the model (A-scan) is the last one and deletes the grid 
-        # inside the global variable 
-        # The grid is not visible outside of the module (file) it is defined in, so it is not possible to delete it only with the global keyword.
         # with _nostdout():
-        gprmax_run(str(f), n_ascans, geometry_fixed=True, geometry_only=geometry_only, gpu=gpus)
-
         output_files_basename = f.stem
         sim_output_dir = output_dir / output_files_basename
+        sim_output_dir.mkdir(parents=True, exist_ok=True)
+        gprmax_run(str(f), n_ascans, geometry_fixed=True, geometry_only=geometry_only, gpu=gpus)
+
         # merge output A-scans
         if not geometry_only:
             merged_output_file_name = output_files_basename + "_merged.out"
