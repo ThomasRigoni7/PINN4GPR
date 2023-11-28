@@ -107,10 +107,10 @@ def initial_comparison():
     """
     import cv2
     from tools.outputfiles_merge import get_output_data
-    boxes_2D_data, dt0 = get_output_data("PINN4GPR/gprmax_input_files/initial_comparison/output/2D_boxes_merged.out", 1, "Ez")
-    cylinders_2D_data, dt1 = get_output_data("PINN4GPR/gprmax_input_files/initial_comparison/output/2D_cylinders_pep_merged.out", 1, "Ez")
-    cylinders_3D_data, dt2 = get_output_data("PINN4GPR/gprmax_input_files/initial_comparison/output/3D_cylinders_pep_no_rails_merged.out", 1, "Ez")
-    cylinders_3D_rail_data, dt3 = get_output_data("PINN4GPR/gprmax_input_files/initial_comparison/output/3D_cylinders_pep_rails_merged.out", 1, "Ez")
+    boxes_2D_data, dt0 = get_output_data("gprmax_input_files/initial_comparison/output/2D_boxes_merged.out", 1, "Ez")
+    cylinders_2D_data, dt1 = get_output_data("gprmax_input_files/initial_comparison/output/2D_cylinders_pep_merged.out", 1, "Ez")
+    cylinders_3D_data, dt2 = get_output_data("gprmax_input_files/initial_comparison/output/3D_cylinders_pep_no_rails_merged.out", 1, "Ez")
+    cylinders_3D_rail_data, dt3 = get_output_data("gprmax_input_files/initial_comparison/output/3D_cylinders_pep_rails_merged.out", 1, "Ez")
 
     assert dt2 == dt3, "Error: time discretization is different between 3D models."
 

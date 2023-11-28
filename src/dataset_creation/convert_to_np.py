@@ -2,14 +2,9 @@
 This module contains utility functions to convert results of the gprMax computation into numpy ndarrays.
 """
 
-from attr import field
 import numpy as np
 import h5py
 from pathlib import Path
-
-import vtkmodules
-
-from gprmax_repo import gprMax
 
 def _parse_materials_file(file_path: str | Path) -> list:
     """
@@ -75,6 +70,19 @@ def convert_geometry_to_np(filename: str | Path, output_file: str | Path | None 
         np.save(output_file, new_data)
         
 def extract_snapshot_fields_numpy(snapshot_path: str | Path):
+    """
+    Extract the electric and magnetic fields from a snapshot `.vti` file.
+
+    Parameters
+    ----------
+    snapshot_path : str | Path
+        path to the snapshot file generated from gprMax
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray] of shape [height, width, 3]
+        Electric and magnetic fields in the x, y, z directions
+    """
     import vtk
     from vtkmodules.util.numpy_support import vtk_to_numpy
     reader = vtk.vtkXMLImageDataReader()
@@ -88,55 +96,87 @@ def extract_snapshot_fields_numpy(snapshot_path: str | Path):
     vtk_h_field = cell_data.GetArray("H-field")
     h_field = vtk_to_numpy(vtk_h_field).copy()
     dims = data.GetDimensions()
-    # print(e_field.shape)
-    # print(h_field.shape)
-    # print(dims)
 
-    # E-field has only z component,  H-field only x,y
-    assert np.allclose(e_field[:, 0], np.zeros_like(e_field[:, 0]))
-    assert np.allclose(e_field[:, 1], np.zeros_like(e_field[:, 1]))
-    assert np.allclose(h_field[:, 2], np.zeros_like(h_field[:, 2]))
-
-    # possibly an error in gprMax with the specification of the dimentions
+    # Possibly an error in gprMax with the specification of the array sizes
     dims = dims[0] - 1, dims[1] - 1, 3
-    e_field = e_field.reshape(dims[1], dims[0], 3)
+    e_field = e_field.reshape(dims[1], dims[0], dims[2])
     e_field = np.flipud(e_field)
-    h_field = h_field.reshape(dims[1], dims[0], 3)
+    h_field = h_field.reshape(dims[1], dims[0], dims[2])
     h_field = np.flipud(h_field)
 
     return e_field, h_field
 
-def convert_snapshots_to_np(output_folder : str | Path, remove_files: bool = False):
+def convert_snapshots_to_np(snapshot_folder : str | Path, output_file: str | Path, remove_files: bool = False) -> dict[str, np.ndarray]:
     """
     Converts snapshots related to a full B-scan into numpy arrays.
 
-    Creates a single npz file containing all the arrays. Each array inside the npz 
-    file is of shape [n_snapshots, height, width]
+    Creates a single `.npz` file containing all the arrays. 
+    
+    Each array inside the npz file is of shape:
+     - [n_snapshots, height, width] for E-fields (z component of the field)
+     - [n_snapshots, 2, height, width] for H-fields (x, y components)
 
     Parameters
     ----------
-    output_folder : str | Path
-        the output folder of the B-scan.
+    snapshot_folder : str | Path
+        path to the folder containing all the snapshots of a B-scan.
+    output_file : str | Path
+        path to the output to store the results in `.npz` format
     remove_files : bool, default: False
-        if set, deletes the original .vti files.
+        if set, deletes the original `.vti` files.
+
+    Returns
+    -------
+    dict[str, np.ndarray]
+        the in-memory dictionary that has been saved to disk
     """
-    output_folder = Path(output_folder)
-    folders = output_folder.glob("scan_*_snaps*")
+    snapshot_folder = Path(snapshot_folder)
+    folders = snapshot_folder.glob("scan_*_snaps*")
     folders = [f for f in folders]
-    print(folders)
-    
-    
+
+    def extract_time_from_snapshot_path(snapshot_file_path : Path):
+        time = float(snapshot_file_path.stem.lstrip("snap_"))
+        return time
+
+    full_data = {}
+    for folder in folders:
+        a_scan_number = int(folder.stem.lstrip(folder.stem[:15])) - 1
+        snapshot_files = [f for f in folder.glob("snap_*.vti")]
+        snapshot_files.sort(key=extract_time_from_snapshot_path)
+        times = [extract_time_from_snapshot_path(f) for f in snapshot_files]
+        times.sort()
+
+        a_scan_data_e_field = []
+        a_scan_data_h_field = []
+        for file in snapshot_files:
+            e_field, h_field = extract_snapshot_fields_numpy(file)
+            e_field = e_field[:, :, 2]
+            h_field = h_field[:, :, 0:2]
+            h_field = h_field.transpose(2, 0, 1)
+            a_scan_data_e_field.append(e_field)
+            a_scan_data_h_field.append(h_field)
+            
+            if remove_files:
+                file.unlink()
+
+        a_scan_data_e_field = np.asarray(a_scan_data_e_field)
+        a_scan_data_h_field = np.asarray(a_scan_data_h_field)
+        full_data[f"{str(a_scan_number).zfill(4)}_E"] = a_scan_data_e_field
+        full_data[f"{str(a_scan_number).zfill(4)}_H"] = a_scan_data_h_field
+        full_data[f"{str(a_scan_number).zfill(4)}_times"] = times
+
+        if remove_files:
+            folder.rmdir()
+
+    np.savez(output_file, **full_data)
+
+    return full_data    
 
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     # convert_geometry_to_np("data/geometry_2D_cylinders_clean_materials.txt")
-    # e_field, h_field = extract_snapshot_fields_numpy("gprmax_output_files/scan_0000/scan_0000_snaps1/snap_1.1e-08.vti")
-    # print(e_field.shape)
-    # plt.imshow(e_field[:, :, 2], cmap='seismic',
-    #            vmin=-np.absolute(e_field).max(), vmax=np.absolute(e_field).max())
-    # plt.show()
-    # plt.imshow(h_field[:, :, 0], cmap='seismic',
-    #            vmin=-np.absolute(h_field).max(), vmax=np.absolute(h_field).max())
-    # plt.show()
-    convert_snapshots_to_np("gprmax_output_files/scan_0000")
+    data = convert_snapshots_to_np("gprmax_output_files/scan_0000", "scan_0000_snapshots")
+    print(data.keys())
+    from ..visualization.misc import save_field_animation
+    save_field_animation(data["0001_E"], "gprmax_output_files/scan_0000/snapshots1.mp4")

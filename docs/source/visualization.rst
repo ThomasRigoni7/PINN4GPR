@@ -5,3 +5,4 @@ visualization package
    :maxdepth: 4
 
    initial_comparison
+   misc

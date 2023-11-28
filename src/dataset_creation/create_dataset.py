@@ -11,7 +11,7 @@ from pathlib import Path
 from tqdm import tqdm
 from yaml import safe_load
 
-from .convert_to_np import convert_geometry_to_np
+from .convert_to_np import convert_geometry_to_np, convert_snapshots_to_np
 from .inputfile import InputFile
 from .configuration import GprMaxConfig
 
@@ -134,10 +134,15 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
     # check if pycuda is installed, otherwise only use cpu
     gpus = None
     try:
-        import pycuda
+        # Check and list any CUDA-Enabled GPUs
+        import pycuda.driver as drv
+        drv.init()
+        if drv.Device.count() == 0:
+            raise Exception("No nvidia GPU detected")
         gpus = [0]
-    except ImportError:
-        pass
+        print("NVIDIA GPU detected!")
+    except Exception:
+        print("No NVIDIA GPU detected, pycuda package or the CUDA toolkit not installed. Falling back to CPU mode.")
 
     for f in input_dir.glob("*.in"):
         # run sims
@@ -157,10 +162,8 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
         h5_file_name = output_files_basename + "_geometry.h5"
         convert_geometry_to_np(tmp_dir/h5_file_name, (sim_output_dir/h5_file_name).with_suffix(".npy"), remove_files=True)
 
-        # move the snapshot files, which are created in the input folder
-        snapshot_dirs = input_dir.glob(f"{output_files_basename}_snaps*")
-        for d in snapshot_dirs:
-            d.replace(sim_output_dir/d.name)
+        # convert the snapshots and save a single npz file, they are in the input folder
+        convert_snapshots_to_np(input_dir, sim_output_dir / "snapshots", False)
 
 
 

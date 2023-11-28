@@ -113,6 +113,7 @@ class InputFile():
         self.write_command("dx_dy_dz", spatial_resolution)
         self.write_command("time_window", [time_window])
         self.write_command("output_dir", [str(output_dir)])
+        self.write_command("messages", ["n"])
         self.write_line()
 
     def write_source_receiver(self, 
