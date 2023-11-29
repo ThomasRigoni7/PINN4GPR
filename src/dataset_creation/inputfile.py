@@ -215,7 +215,8 @@ class InputFile():
 
         ballast_height = position[1] - position[0]
         simulation = BallastSimulation((self.domain[0], ballast_height), buffer_y=0.4)
-        ballast_stones = simulation.run(random_generator=self.random_generator)
+        seed = self.random_generator.integers(0, 2**32)
+        ballast_stones = simulation.run(random_seed=seed)
         for stone in ballast_stones:
             x, y, r = stone
             self.write_command("cylinder", (x, y + position[0], 0, x, y + position[0], self.domain[2], r, "ballast", "n"))
@@ -369,7 +370,7 @@ for t in snapshot_times:
 
     # def write_
 
-    def write_randomized(self, config: GprMaxConfig, seed: int|None = None):
+    def write_randomized(self, config: GprMaxConfig, seed: int | None = None):
         """
         Writes an entire randomized gprMax input file on disk, based on the specified configuration.
 
@@ -381,6 +382,8 @@ for t in snapshot_times:
             seed to use in the random number generators.
         """
         self.random_generator = np.random.default_rng(seed)
+        self.write_line("## Generated with seed: " + str(self.random_generator.bit_generator.seed_seq.entropy))
+        self.write_line()
         # general commands
         self.write_general_commands(self.title, config.domain, config.spatial_resolution, config.time_window, config.tmp_dir)
         # source and receiver
@@ -388,7 +391,7 @@ for t in snapshot_times:
                                    config.source_position, config.receiver_position, config.step_size)
         # randomize layer sizes
         sizes = config.layer_sizes
-        noise = self.random_generator.normal(0, config.layer_deviations)
+        noise = (self.random_generator.beta(2, 2) * np.asarray(config.layer_deviations)) - np.asarray(config.layer_deviations) / 2
         layer_sizes = np.array(sizes) + noise
         for i in range(1, len(layer_sizes)):
             if layer_sizes[i] < layer_sizes[i-1]:

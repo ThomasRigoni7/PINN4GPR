@@ -194,4 +194,4 @@ if __name__ == "__main__":
     if config.generate_input:
         create_gprmax_input_files(config)
 
-    run_simulations(config.input_dir, config.tmp_dir, config.output_dir, config.n_ascans, geometry_only=False)
+    #run_simulations(config.input_dir, config.tmp_dir, config.output_dir, config.n_ascans, geometry_only=False)
