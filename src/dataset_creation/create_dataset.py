@@ -150,7 +150,13 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
         output_files_basename = f.stem
         sim_output_dir = output_dir / output_files_basename
         sim_output_dir.mkdir(parents=True, exist_ok=True)
-        gprmax_run(str(f), n_ascans, geometry_fixed=True, geometry_only=geometry_only, gpu=gpus)
+
+        # create the temporary snapshot directories
+        for i in range(1, config.n_ascans + 1):
+            snapshot_dir = tmp_dir / f"{f.stem}_snaps{i}"
+            snapshot_dir.mkdir(parents=True, exist_ok=True)
+
+        gprmax_run(str(f), n_ascans, geometry_fixed=False, geometry_only=geometry_only, gpu=gpus)
 
         # merge output A-scans
         if not geometry_only:
@@ -163,7 +169,11 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
         convert_geometry_to_np(tmp_dir/h5_file_name, (sim_output_dir/h5_file_name).with_suffix(".npy"), remove_files=True)
 
         # convert the snapshots and save a single npz file, they are in the input folder
-        convert_snapshots_to_np(input_dir, sim_output_dir / "snapshots", False)
+        convert_snapshots_to_np(tmp_dir, sim_output_dir / "snapshots", True)
+        # delete the empty snapshot directories created by gprMax in the input folder
+        dirs = input_dir.glob(f"{f.stem}_snaps*")
+        for d in dirs:
+            d.rmdir()
 
 
 

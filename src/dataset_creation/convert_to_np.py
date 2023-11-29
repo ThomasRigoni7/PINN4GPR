@@ -33,7 +33,7 @@ def convert_geometry_to_np(filename: str | Path, output_file: str | Path | None 
 
     Returns
     -------
-    ret : np.ndarray
+    ret : np.ndarray of shape [4, height, width]
         - `ret[0]` contains the relative permittivity, 
         - `ret[1]` contains the conductivity,
         - `ret[2]` contains the relative permeability,
@@ -59,6 +59,9 @@ def convert_geometry_to_np(filename: str | Path, output_file: str | Path | None 
         new_data[1, indexes] = conductivity
         new_data[2, indexes] = relative_permeability
         new_data[3, indexes] = magnetic_loss
+    
+    # fix axis order and orientation:
+    new_data = np.flip(new_data.transpose(0, 2, 1), 1)
 
     if remove_files:
         h5_path.unlink()
@@ -140,7 +143,7 @@ def convert_snapshots_to_np(snapshot_folder : str | Path, output_file: str | Pat
 
     full_data = {}
     for folder in folders:
-        a_scan_number = int(folder.stem.lstrip(folder.stem[:15])) - 1
+        a_scan_number = int(folder.stem[15:]) - 1
         snapshot_files = [f for f in folder.glob("snap_*.vti")]
         snapshot_files.sort(key=extract_time_from_snapshot_path)
         times = [extract_time_from_snapshot_path(f) for f in snapshot_files]

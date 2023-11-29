@@ -354,12 +354,20 @@ class InputFile():
         time_steps : list[float] 
             times at which to take the snapshots, in seconds.
         """
+
+        script = f"""
+snapshot_times = {str(time_steps)}
+for t in snapshot_times:
+    print(f"#snapshot: {0} {0} {0} {self.domain[0]} {self.domain[1]} {self.domain[2]} {self.spatial_resolution[0]} {self.spatial_resolution[1]} {self.spatial_resolution[2]} {{t}} {{'{str(output_basefilename)}_snaps' + str(current_model_run) + '/snap_' + str(t)}}")
+        """
+
         self.write_line("##Snapshots")
-        for t in time_steps:
-            self.write_command("snapshot", (0, 0, 0, self.domain[0], self.domain[1], self.domain[2], 
-                                            self.spatial_resolution[0], self.spatial_resolution[1], self.spatial_resolution[2],
-                                            t, str(output_basefilename) + f"_{t}"))
+        self.write_command("python", [])
+        self.write_line(script)
+        self.write_command("end_python", [])
         self.write_line()
+
+    # def write_
 
     def write_randomized(self, config: GprMaxConfig, seed: int|None = None):
         """
@@ -413,7 +421,7 @@ class InputFile():
 
         # snapshots
         if config.snapshot_times:
-            self.write_snapshots("snap", config.snapshot_times)
+            self.write_snapshots(config.tmp_dir / self.title, config.snapshot_times)
         else:
             self.write_line("## No snapshots\n")
 
