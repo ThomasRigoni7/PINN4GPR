@@ -10,9 +10,21 @@ This is the documentation of the PINN4GPR project, aiming to build a fast surrog
 for the `gprMax <https://www.gprmax.com/>`_ software in the railway track domain, by using Physics-Informed Neural Networks (PINNs).
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2
+   :caption: Getting started
 
-   api_ref
+   package_overview
+   installation
+   tutorial
+
+.. toctree:: 
+   :maxdepth: 3
+   :caption: API reference
+
+   dataset_creation
+   pinns
+   visualization
+
 
 Indices and tables
 ==================

@@ -86,7 +86,7 @@ def extract_snapshot_fields_numpy(snapshot_path: str | Path):
     import vtk
     from vtkmodules.util.numpy_support import vtk_to_numpy
     reader = vtk.vtkXMLImageDataReader()
-    reader.SetFileName(snapshot_path)
+    reader.SetFileName(str(snapshot_path))
     reader.Update()
     data = reader.GetOutput()
     cell_data = data.GetCellData()
