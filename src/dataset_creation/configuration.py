@@ -39,7 +39,8 @@ class GprMaxConfig(BaseModel):  # numpydoc ignore=PR01
     # Materials and layers
     materials: dict[str, tuple[float, ...]]
     antenna_sleeper_distance: float
-    layer_sizes: tuple[tuple[float, float], tuple[float, float], tuple[float, float]]
+    layer_sizes: dict[str, tuple[float, float]]
+    layer_roughness: dict[str, float]
 
     # Sleepers
     sleepers_separation: float
@@ -47,6 +48,7 @@ class GprMaxConfig(BaseModel):  # numpydoc ignore=PR01
     sleepers_size: tuple[float, float, float]
 
     # Fouling/water content
+    fouling_prob: float
     max_fouling_percentage: float
     fouling_water_range: tuple[float, float]
     pss_water_range: tuple[float, float]

@@ -1,5 +1,5 @@
 # general configuration
-n_samples: 2
+n_samples: 1
 
 generate_input: false
 geometry_only: false
@@ -27,12 +27,16 @@ pep_soil_number: 15
 materials: {
   ballast: [6.5, 0, 1, 0],
   concrete: [8, 0.01, 1, 0],
-  pss: [0.9, 0.1, 2, 2.66, 0.02, 0.03],
   gravel: [5, 0, 1, 0],
-  fouling: [0.9, 0.1, 2, 2.66, 0.02, 0.03],
   wood: [2, 0.01, 1, 0],
-  steel: [1, inf, 1, 0],
+  steel: [1, inf, 1, 0], # perfect electric conductor (pec)
   asphalt: [8, 0.01, 1, 0],
+  # peplinsky soils: the last two values are min and max water content across samples, 
+  # the actual values will be sampled during dataset creation based on general 
+  # water content of the sample.
+  fouling: [0.9, 0.1, 2, 2.66, 0.03, 0.18],
+  PSS: [0.9, 0.1, 2, 2.66, 0.03, 0.18],
+  subsoil: [0.9, 0.1, 2, 2.66, 0.03, 0.18],
 }
 
 antenna_sleeper_distance: 0.465
@@ -46,9 +50,10 @@ layer_sizes: {
 }
 # roughness of the layers
 layer_roughness: {
-  asphalt: [0.02],
-  PSS: [0.05],
-  subsoil: [0.05]
+  top_fouling: 0.02,
+  fouling_asphalt: 0.02,
+  asphalt_pss: 0.03,
+  pss_subsoil: 0.05
 }
 
 # sleepers
@@ -57,6 +62,7 @@ sleepers_material: ["all"]
 sleepers_size: [0.17, 0.10, 0.002]
 
 # fouling and water content
+fouling_prob: 0.5
 max_fouling_percentage: 1
 fouling_water_range: [0.03, 0.15]
 pss_water_range: [0.03, 0.15]

@@ -273,8 +273,8 @@ class InputFile():
                                    position: tuple[float, float], 
                                    fractal_dimension: float, 
                                    soil_number: int, 
-                                   top_surface_roughness: None | tuple[float, float] = None,
-                                   bottom_surface_roughness: None | tuple[float, float] = None,
+                                   top_surface_roughness: None | float = None,
+                                   bottom_surface_roughness: None | float = None,
                                    add_top_water: bool = False):
         """
         Writes the commands associated with a fractal box material.
@@ -293,21 +293,22 @@ class InputFile():
             fractal dimension of the box
         soil_number : int
             number of soil components, must be 1 if the material is not a peplinski soil.
-        top_surface_roughness : None | tuple[float, float], default: None
-            max depth and height of the applied top surface roughness, not applied if None.
-        bottom_surface_roughness : None | tuple[float, float], default: None
-            max depth and height of the applied bottom surface roughness, not applied if None.
+        top_surface_roughness : None | float, default: None
+            max depth of the applied top surface roughness, not applied if None.
+        bottom_surface_roughness : None | float, default: None
+            max height of the applied bottom surface roughness, not applied if None.
         add_top_water : bool, default: False
             if set, add top water with a depth equal to the max height of the top surface roughness.
         """
+        print(material)
         assert len(material) == 4 or len(material) == 6, f"Material is specified by 4 or 6 float arguments, but {material} given."
-        if len(material == 4):
-            assert fractal_dimension == 1, f"Fractal dimension must be 1 for a regular material, but {fractal_dimension} given."
+        if len(material) == 4:
+            assert soil_number == 1, f"Soil number must be 1 for a regular material, but {soil_number} given."
         self.write_line(f"## {name}:")
         if len(material) == 4:
             self.write_command("material", list(material) + [name.lower()])
         elif len(material) == 6:
-            self.write_command("soil_peplinsky", list(material) + [name.lower()])
+            self.write_command("soil_peplinski", list(material) + [name.lower()])
 
         self.write_command("fractal_box", (0, position[0], 0, 
                                            self.domain[0], position[1], self.domain[2], 
@@ -315,16 +316,16 @@ class InputFile():
                                            name.lower(), name.lower() + "_fractal_box"))
         if top_surface_roughness is not None:
             top_surface = (0, position[1], 0, self.domain[0], position[1], self.domain[2])
-            lower_limit = position[1] + top_surface_roughness[0]
-            upper_limit = position[1] + top_surface_roughness[1]
-            self.write_command("add_surface_roughness", top_surface + (fractal_dimension, 1, 1, lower_limit, upper_limit))
+            lower_limit = position[1] - top_surface_roughness
+            seed = self.random_generator.integers(2**32)
+            self.write_command("add_surface_roughness", top_surface + (fractal_dimension, 1, 1, lower_limit, position[1], name.lower() + "_fractal_box", seed))
             if add_top_water:
-                self.write_command("add_surface_water", top_surface + (upper_limit, name.lower() + "_fractal_box"))
+                self.write_command("add_surface_water", top_surface + (position[1], name.lower() + "_fractal_box"))
         if bottom_surface_roughness is not None:
+            seed = self.random_generator.integers(2**32)
             bottom_surface = (0, position[0], 0, self.domain[0], position[0], self.domain[2])
-            lower_limit = position[0] + bottom_surface_roughness[0]
-            upper_limit = position[0] + bottom_surface_roughness[1]
-            self.write_command("add_surface_roughness", bottom_surface + (fractal_dimension, 1, 1, lower_limit, upper_limit))
+            upper_limit = position[0] + bottom_surface_roughness
+            self.write_command("add_surface_roughness", bottom_surface + (fractal_dimension, 1, 1, position[0], upper_limit, name.lower() + "_fractal_box", seed))
         self.write_line()
 
     def _clip_into_domain(self, coords: tuple[float, float, float]) -> tuple[float, float, float]:
@@ -428,6 +429,28 @@ for t in snapshot_times:
         self.write_command("end_python", [])
         self.write_line()
 
+
+    def _build_layer_positions(self, ballast_top_y: float, sampled_layer_sizes: dict[str, float], layer_roughness: dict[str, float], AC_rail: bool):
+        layer_positions = {}
+        layer_positions["ballast"] = ballast_top_y - sampled_layer_sizes["ballast"], ballast_top_y
+        # fouling
+        if "fouling" in sampled_layer_sizes:
+            layer_positions["fouling"] = layer_positions["ballast"][0] - layer_roughness["fouling_asphalt"] / 2, \
+                                            layer_positions["ballast"][0] + sampled_layer_sizes["fouling"]
+        height = layer_positions["ballast"][0]
+        # asphalt
+        if AC_rail:
+            layer_positions["asphalt"] = height - sampled_layer_sizes["asphalt"] - layer_roughness["asphalt_pss"] / 2 , \
+                                            height + layer_roughness["fouling_asphalt"] / 2
+            height = height - sampled_layer_sizes["asphalt"]
+        # PSS
+        layer_positions["PSS"] = height - sampled_layer_sizes["PSS"] - layer_roughness["pss_subsoil"] / 2, \
+                                    height + layer_roughness["asphalt_pss"]
+        height = height - sampled_layer_sizes["PSS"]
+        layer_positions["subsoil"] = 0.0, height + layer_roughness["pss_subsoil"] / 2
+
+        return layer_positions
+
     def write_randomized(self, config: GprMaxConfig, seed: int | None = None):
         """
         Writes an entire randomized gprMax input file on disk, based on the specified configuration.
@@ -451,46 +474,83 @@ for t in snapshot_times:
         AC_rail = self.random_generator.choice([False, True])
 
         # sample layer sizes
-        layer_sizes = []
-        for layer_range in config.layer_sizes:
+        sampled_layer_sizes = {}
+        for layer_name, layer_range in config.layer_sizes.items():
             size = self.random_generator.beta(2, 2) * (layer_range[1] - layer_range[0]) + layer_range[0]
-            layer_sizes.append(size)
+            sampled_layer_sizes[layer_name] = size
+        
+        # sample fouling size
+        is_fouled = self.random_generator.uniform() < config.fouling_prob
+        if is_fouled:
+            size = self.random_generator.beta(1.2, 2.5) * config.max_fouling_percentage * sampled_layer_sizes["ballast"]
+            sampled_layer_sizes["fouling"] = size
 
-        # sample water content
+        # sample water content between 0 and 1
         general_water_content = self.random_generator.beta(1.2, 2.5)
+        # water infiltrations in fouling-asphalt, asphalt-PSS, PSS-subsoil
         water_infiltrations = self.random_generator.normal(general_water_content, 0.3, 3) > 0.5
+        print(water_infiltrations)
         
         sleepers_bottom_y = config.source_position[1] - config.antenna_sleeper_distance - config.sleepers_size[1]
         ballast_top_y = sleepers_bottom_y + 0.7 * config.sleepers_size[1]
-        ballast_bottom_y = ballast_top_y - layer_sizes[0]
 
-        if AC_rail:
-            # add the asphalt layer
-            self.write_box_material
+        # calculate layer positions
+        layer_positions = self._build_layer_positions(ballast_top_y, sampled_layer_sizes, config.layer_roughness, AC_rail)
 
-        raise NotImplementedError()
-        
-        # ASPHALT
-        self.write_box_material("Asphalt", config.materials["asphalt"], (layer_sizes[0], layer_sizes[1]))
-        # BALLAST
-        self.write_pss(config.materials["pss"], (layer_sizes[1], layer_sizes[2]), config.fractal_dimension, config.pep_soil_number)
-
-        fouling_level = round(self.random_generator.random() * config.max_fouling_percentage, 2)
-        self.write_ballast(config.materials["ballast"], (layer_sizes[2], layer_sizes[3]), fouling_level, config.materials["fouling"],
-                           config.fractal_dimension, config.pep_soil_number)
-
-        # SLEEPERS
+        # sample sleepers material
         if "all" in config.sleepers_material:
             config.sleepers_material = ["steel", "concrete", "wood"]
         sleepers_material_name = self.random_generator.choice(config.sleepers_material)
 
-        # sleepers are placed on top of the ballast, with 70% of the sleepers submerged in it.
+        # TODO: replace water contents of fouling, pss and subsoil
+        fouling_material = config.materials["fouling"]
+        pss_material = config.materials["PSS"]
+        subsoil_material = config.materials["subsoil"]
+
+        ################
+        # WRITE LAYERS #
+        ################
+        print(subsoil_material)
+
+        # SUBSOIL
+        self.write_fractal_box_material("Subsoil", subsoil_material, layer_positions["subsoil"], 
+                                        config.fractal_dimension, config.pep_soil_number, 
+                                        top_surface_roughness=config.layer_roughness["pss_subsoil"], 
+                                        bottom_surface_roughness=None,
+                                        add_top_water=water_infiltrations[0])
+        
+        # PSS
+        bottom_roughness = config.layer_roughness["pss_subsoil"] if water_infiltrations[0] else None
+        self.write_fractal_box_material("PSS", pss_material, layer_positions["PSS"],
+                                        config.fractal_dimension, config.pep_soil_number,
+                                        top_surface_roughness=config.layer_roughness["asphalt_pss"],
+                                        bottom_surface_roughness=bottom_roughness,
+                                        add_top_water=water_infiltrations[1])
+        # ASPHALT
+        if AC_rail:
+            bottom_roughness = config.layer_roughness["asphalt_pss"] if water_infiltrations[1] else None
+            self.write_fractal_box_material("Asphalt", config.materials["asphalt"], layer_positions["asphalt"],
+                                            config.fractal_dimension, 1,
+                                            top_surface_roughness=config.layer_roughness["fouling_asphalt"],
+                                            bottom_surface_roughness=bottom_roughness,
+                                            add_top_water=water_infiltrations[2])
+        # FOULING
+        if is_fouled:
+            bottom_roughness = config.layer_roughness["fouling_asphalt"] if water_infiltrations[2] else None
+            self.write_fractal_box_material("Fouling", fouling_material, layer_positions["fouling"],
+                                            config.fractal_dimension, config.pep_soil_number,
+                                            top_surface_roughness=config.layer_roughness["top_fouling"],
+                                            bottom_surface_roughness=bottom_roughness,
+                                            add_top_water=False)
+        # BALLAST
+        self.write_ballast(config.materials["ballast"], layer_positions["ballast"])
+
+        # SLEEPERS
         first_sleeper_position = round(self.random_generator.random() * config.sleepers_separation - config.sleepers_size[0] + config.spatial_resolution[0], 2)
         all_sleepers_positions = []
         pos = first_sleeper_position
-        sleepers_y = layer_sizes[3] - 0.7* config.sleepers_size[1]
         while pos < config.domain[0]:
-            all_sleepers_positions.append((pos, sleepers_y, 0))
+            all_sleepers_positions.append((pos, sleepers_bottom_y, 0))
             pos += config.sleepers_separation
         self.write_sleepers(config.materials[sleepers_material_name], all_sleepers_positions, config.sleepers_size, sleepers_material_name)
 
