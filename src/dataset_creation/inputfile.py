@@ -267,6 +267,66 @@ class InputFile():
         self.write_command("box", (0, position[0], 0, self.domain[0], position[1], self.domain[2], name.lower()))
         self.write_line()
 
+    def write_fractal_box_material(self, 
+                                   name: str, 
+                                   material: list|tuple, 
+                                   position: tuple[float, float], 
+                                   fractal_dimension: float, 
+                                   soil_number: int, 
+                                   top_surface_roughness: None | tuple[float, float] = None,
+                                   bottom_surface_roughness: None | tuple[float, float] = None,
+                                   add_top_water: bool = False):
+        """
+        Writes the commands associated with a fractal box material.
+
+        Can add top or bottom surface roughness and water at the top of the layer.
+
+        Parameters
+        ----------
+        name : str
+            the name of the material
+        material : list | tuple
+            the material phisical values, either 4 or 6 float values associated with normal or peplinski materials
+        position : tuple[float, float]
+            initial and final y coordinate of the box
+        fractal_dimension : float
+            fractal dimension of the box
+        soil_number : int
+            number of soil components, must be 1 if the material is not a peplinski soil.
+        top_surface_roughness : None | tuple[float, float], default: None
+            max depth and height of the applied top surface roughness, not applied if None.
+        bottom_surface_roughness : None | tuple[float, float], default: None
+            max depth and height of the applied bottom surface roughness, not applied if None.
+        add_top_water : bool, default: False
+            if set, add top water with a depth equal to the max height of the top surface roughness.
+        """
+        assert len(material) == 4 or len(material) == 6, f"Material is specified by 4 or 6 float arguments, but {material} given."
+        if len(material == 4):
+            assert fractal_dimension == 1, f"Fractal dimension must be 1 for a regular material, but {fractal_dimension} given."
+        self.write_line(f"## {name}:")
+        if len(material) == 4:
+            self.write_command("material", list(material) + [name.lower()])
+        elif len(material) == 6:
+            self.write_command("soil_peplinsky", list(material) + [name.lower()])
+
+        self.write_command("fractal_box", (0, position[0], 0, 
+                                           self.domain[0], position[1], self.domain[2], 
+                                           fractal_dimension, 1, 1, 1, soil_number,
+                                           name.lower(), name.lower() + "_fractal_box"))
+        if top_surface_roughness is not None:
+            top_surface = (0, position[1], 0, self.domain[0], position[1], self.domain[2])
+            lower_limit = position[1] + top_surface_roughness[0]
+            upper_limit = position[1] + top_surface_roughness[1]
+            self.write_command("add_surface_roughness", top_surface + (fractal_dimension, 1, 1, lower_limit, upper_limit))
+            if add_top_water:
+                self.write_command("add_surface_water", top_surface + (upper_limit, name.lower() + "_fractal_box"))
+        if bottom_surface_roughness is not None:
+            bottom_surface = (0, position[0], 0, self.domain[0], position[0], self.domain[2])
+            lower_limit = position[0] + bottom_surface_roughness[0]
+            upper_limit = position[0] + bottom_surface_roughness[1]
+            self.write_command("add_surface_roughness", bottom_surface + (fractal_dimension, 1, 1, lower_limit, upper_limit))
+        self.write_line()
+
     def _clip_into_domain(self, coords: tuple[float, float, float]) -> tuple[float, float, float]:
         """
         Clips coordinates into the domain.
@@ -368,8 +428,6 @@ for t in snapshot_times:
         self.write_command("end_python", [])
         self.write_line()
 
-    # def write_
-
     def write_randomized(self, config: GprMaxConfig, seed: int | None = None):
         """
         Writes an entire randomized gprMax input file on disk, based on the specified configuration.
@@ -379,7 +437,7 @@ for t in snapshot_times:
         config : GprMaxConfig
             configuration.
         seed : int | None, optional
-            seed to use in the random number generators.
+            seed to use in the random number generators. The input file contents are deterministic as long as the same seed is used.
         """
         self.random_generator = np.random.default_rng(seed)
         self.write_line("## Generated with seed: " + str(self.random_generator.bit_generator.seed_seq.entropy))
@@ -389,22 +447,35 @@ for t in snapshot_times:
         # source and receiver
         self.write_source_receiver(config.source_waveform, config.source_central_frequency, 
                                    config.source_position, config.receiver_position, config.step_size)
-        # randomize layer sizes
-        sizes = config.layer_sizes
-        noise = (self.random_generator.beta(2, 2) * np.asarray(config.layer_deviations)) - np.asarray(config.layer_deviations) / 2
-        layer_sizes = np.array(sizes) + noise
-        for i in range(1, len(layer_sizes)):
-            if layer_sizes[i] < layer_sizes[i-1]:
-                layer_sizes[i] = layer_sizes[i-1]
+        # sample track type:
+        AC_rail = self.random_generator.choice([False, True])
 
-        # GRAVEL
-        self.write_box_material("Gravel", config.materials["gravel"], (0, layer_sizes[0]))
+        # sample layer sizes
+        layer_sizes = []
+        for layer_range in config.layer_sizes:
+            size = self.random_generator.beta(2, 2) * (layer_range[1] - layer_range[0]) + layer_range[0]
+            layer_sizes.append(size)
+
+        # sample water content
+        general_water_content = self.random_generator.beta(1.2, 2.5)
+        water_infiltrations = self.random_generator.normal(general_water_content, 0.3, 3) > 0.5
+        
+        sleepers_bottom_y = config.source_position[1] - config.antenna_sleeper_distance - config.sleepers_size[1]
+        ballast_top_y = sleepers_bottom_y + 0.7 * config.sleepers_size[1]
+        ballast_bottom_y = ballast_top_y - layer_sizes[0]
+
+        if AC_rail:
+            # add the asphalt layer
+            self.write_box_material
+
+        raise NotImplementedError()
+        
         # ASPHALT
         self.write_box_material("Asphalt", config.materials["asphalt"], (layer_sizes[0], layer_sizes[1]))
         # BALLAST
         self.write_pss(config.materials["pss"], (layer_sizes[1], layer_sizes[2]), config.fractal_dimension, config.pep_soil_number)
 
-        fouling_level = round(self.random_generator.random() * config.max_fouling_level, 2)
+        fouling_level = round(self.random_generator.random() * config.max_fouling_percentage, 2)
         self.write_ballast(config.materials["ballast"], (layer_sizes[2], layer_sizes[3]), fouling_level, config.materials["fouling"],
                            config.fractal_dimension, config.pep_soil_number)
 
@@ -412,6 +483,7 @@ for t in snapshot_times:
         if "all" in config.sleepers_material:
             config.sleepers_material = ["steel", "concrete", "wood"]
         sleepers_material_name = self.random_generator.choice(config.sleepers_material)
+
         # sleepers are placed on top of the ballast, with 70% of the sleepers submerged in it.
         first_sleeper_position = round(self.random_generator.random() * config.sleepers_separation - config.sleepers_size[0] + config.spatial_resolution[0], 2)
         all_sleepers_positions = []

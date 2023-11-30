@@ -31,12 +31,25 @@ materials: {
   gravel: [5, 0, 1, 0],
   fouling: [0.9, 0.1, 2, 2.66, 0.02, 0.03],
   wood: [2, 0.01, 1, 0],
-  steel: [1, 0, 1000, 0],
+  steel: [1, inf, 1, 0],
   asphalt: [8, 0.01, 1, 0],
 }
 
-layer_sizes: [0.15, 0.30, 0.55, 0.70]
-layer_deviations: [0.03, 0.03, 0.05, 0.05]
+antenna_sleeper_distance: 0.465
+
+# interval in which to sample the layer sizes, 
+# asphalt only used for AC rail
+layer_sizes: {
+  ballast: [0.3, 0.5],
+  asphalt: [0.05, 0.1],
+  PSS: [0.2, 0.4]
+}
+# roughness of the layers
+layer_roughness: {
+  asphalt: [0.02],
+  PSS: [0.05],
+  subsoil: [0.05]
+}
 
 # sleepers
 sleepers_separation: 0.65
@@ -44,9 +57,9 @@ sleepers_material: ["all"]
 sleepers_size: [0.17, 0.10, 0.002]
 
 # fouling and water content
-max_fouling_level: 0.15
-max_fouling_water: 0.15
-max_pss_water: 0.15
+max_fouling_percentage: 1
+fouling_water_range: [0.03, 0.15]
+pss_water_range: [0.03, 0.15]
 
 # wavefield snapshots
 snapshot_times: [1.0e-09, 2.0e-09, 3.0e-09, 4.0e-09, 5.0e-09, 6.0e-09, 7.0e-09, 8.0e-09, 9.0e-09, 1.0e-08, 1.1e-08, 1.2e-08, 1.3e-08, 1.4e-08, 1.5e-08, 1.6e-08, 1.7e-08, 1.8e-08, 1.9e-08, 2.0e-08, 2.1e-08, 2.2e-08, 2.3e-08, 2.4e-08]
