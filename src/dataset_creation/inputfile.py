@@ -455,6 +455,16 @@ for t in snapshot_times:
         """
         Writes an entire randomized gprMax input file on disk, based on the specified configuration.
 
+        Samples a variety of factors:
+         - the kind of track between a regular PSS and an AC rail (presence of asphalt), 
+         - the layer sizes with a beta(2, 2) distribution between the given bounds.
+         - fouling presence (based on the given probability) and amount with a beta(1.2, 2.5)
+         - general water content between 0 and 1 with a beta(1.2, 2.5)
+         - water infiltrations between the layers derived from the general water content
+            with a normal(`general_water_content`, 0.3) > 0.5 for each 
+         - sleepers materials and position
+         - ballast sieve curve and position
+
         Parameters
         ----------
         config : GprMaxConfig
