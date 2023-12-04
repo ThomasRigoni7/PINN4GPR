@@ -1,0 +1,19 @@
+## General comands
+#title: 2D_spheres_pep 
+#domain: 1.5 1.73 0.004
+#dx_dy_dz: 0.004 0.004 0.004
+#time_window: 2.5e-08 
+#output_dir: output/2D_spheres_pep/
+#messages: n
+
+## Source:
+#waveform: ricker 1 1000000000.0 my_ricker 
+#hertzian_dipole: z 0.2 1.53 0.001 my_ricker 
+#rx: 0.35 1.53 0.001 
+#src_steps: 0.02 0 0 
+#rx_steps: 0.02 0 0 
+
+#geometry_view: 0 0 0 1.5 1.73 0.004 0.004 0.004 0.004 2D_spheres_view n 
+
+#geometry_objects_read: 0 0 0 gprmax_input_files/initial_comparison/2D_spheres_pep_rails_geom.h5 gprmax_input_files/initial_comparison/3D_spheres_pep_rails_geom_materials.txt
+

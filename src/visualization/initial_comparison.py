@@ -109,19 +109,29 @@ def initial_comparison():
     from tools.outputfiles_merge import get_output_data
     boxes_2D_data, dt0 = get_output_data("gprmax_input_files/initial_comparison/output/2D_boxes_merged.out", 1, "Ez")
     cylinders_2D_data, dt1 = get_output_data("gprmax_input_files/initial_comparison/output/2D_cylinders_pep_merged.out", 1, "Ez")
+
     cylinders_3D_data, dt2 = get_output_data("gprmax_input_files/initial_comparison/output/3D_cylinders_pep_no_rails_merged.out", 1, "Ez")
     cylinders_3D_rail_data, dt3 = get_output_data("gprmax_input_files/initial_comparison/output/3D_cylinders_pep_rails_merged.out", 1, "Ez")
 
-    assert dt2 == dt3, "Error: time discretization is different between 3D models."
+    spheres_2D_data, dt4 = get_output_data("gprmax_input_files/initial_comparison/output/2D_spheres_pep_merged.out", 1, "Ez")
+    spheres_3D_data, dt5 = get_output_data("gprmax_input_files/initial_comparison/output/3D_spheres_pep_rails_merged.out", 1, "Ez")
 
-    data = [boxes_2D_data, cylinders_2D_data, cylinders_3D_data, cylinders_3D_rail_data]
-    dts = [dt0, dt1, dt2, dt3]
+    assert dt2 == dt3 == dt5, "Error: time discretization is different between 3D models."
+
+    data = [boxes_2D_data, cylinders_2D_data, cylinders_3D_data, cylinders_3D_rail_data, spheres_2D_data, spheres_3D_data]
+    dts = [dt0, dt1, dt2, dt3, dt4, dt5]
 
     time_window_to_remove = 5e-9
     for bscans, dt in zip(data, dts):
         to_delete = int(time_window_to_remove // float(dt))
         bscans[0:to_delete, :] = 0
         print(f"Set the first {to_delete} values to 0!")
+
+    fig, axs = plt.subplots(ncols=3)
+    plot_bscan("2D cylinders", axs[0], cylinders_2D_data, dt1)
+    plot_bscan("2D spheres", axs[1], spheres_2D_data, dt4)
+    plot_bscan("3D spheres rail", axs[2], spheres_3D_data, dt5)
+    plt.show()
 
     resized_cylinders_2D_data = cv2.resize(cylinders_2D_data, (cylinders_3D_data.shape[1], cylinders_3D_data.shape[0]))
     resized_box = cv2.resize(boxes_2D_data, (cylinders_3D_data.shape[1], cylinders_3D_data.shape[0]))

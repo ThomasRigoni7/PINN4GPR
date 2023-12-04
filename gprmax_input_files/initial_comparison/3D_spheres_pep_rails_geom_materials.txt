@@ -1,0 +1,28 @@
+#material: 1 inf 1 0 pec
+#material: 1 0 1 0 free_space
+#material: 6.5 0 1 0 ballast
+#material: 7 0 1 0 dry_sand
+#material: 8 0.01 1 0 concrete
+#material: 2 0.01 1 0 dry_wood
+#material: 8 0.01 1 0 asphalt
+#material: 5 0 1 0 gravel
+#material: 3.71064 0.0125853 1 0 |0.0015|
+#add_dispersion_debye: 1 0.0311391 9.231e-12 |0.0015|
+#material: 3.82306 0.0139245 1 0 |0.0025|
+#add_dispersion_debye: 1 0.0574209 9.231e-12 |0.0025|
+#material: 3.92295 0.0148835 1 0 |0.0035|
+#add_dispersion_debye: 1 0.085926 9.231e-12 |0.0035|
+#material: 4.01462 0.0156427 1 0 |0.0045|
+#add_dispersion_debye: 1 0.116111 9.231e-12 |0.0045|
+#material: 4.10027 0.0162765 1 0 |0.0055|
+#add_dispersion_debye: 1 0.147665 9.231e-12 |0.0055|
+#material: 2.375 0 1 0 ballast+free_space+free_space+free_space
+#material: 3.75 0 1 0 ballast+free_space+free_space+ballast
+#material: 5.125 0 1 0 ballast+ballast+free_space+ballast
+#material: 5.875 0.005 1 0 concrete+ballast+free_space+concrete
+#material: 7.25 0.005 1 0 concrete+ballast+ballast+concrete
+#material: 4.5 0.005 1 0 concrete+free_space+free_space+concrete
+#material: 2.75 0.0025 1 0 concrete+free_space+free_space+free_space
+#material: 4.125 0.0025 1 0 concrete+free_space+free_space+ballast
+#material: 6.875 0.0025 1 0 concrete+ballast+ballast+ballast
+#material: 5.5 0.0025 1 0 concrete+ballast+ballast+free_space
