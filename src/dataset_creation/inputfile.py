@@ -300,7 +300,6 @@ class InputFile():
         add_top_water : bool, default: False
             if set, add top water with a depth equal to the max height of the top surface roughness.
         """
-        print(material)
         assert len(material) == 4 or len(material) == 6, f"Material is specified by 4 or 6 float arguments, but {material} given."
         if len(material) == 4:
             assert soil_number == 1, f"Soil number must be 1 for a regular material, but {soil_number} given."
@@ -499,7 +498,6 @@ for t in snapshot_times:
         general_water_content = self.random_generator.beta(1.2, 2.5)
         # water infiltrations in fouling-asphalt, asphalt-PSS, PSS-subsoil
         water_infiltrations = self.random_generator.normal(general_water_content, 0.3, 3) > 0.5
-        print(water_infiltrations)
         
         sleepers_bottom_y = config.source_position[1] - config.antenna_sleeper_distance - config.sleepers_size[1]
         ballast_top_y = sleepers_bottom_y + 0.7 * config.sleepers_size[1]
@@ -520,7 +518,6 @@ for t in snapshot_times:
         ################
         # WRITE LAYERS #
         ################
-        print(subsoil_material)
 
         # SUBSOIL
         self.write_fractal_box_material("Subsoil", subsoil_material, layer_positions["subsoil"], 
@@ -572,3 +569,26 @@ for t in snapshot_times:
 
         # save geometry
         self.write_save_geometry(config.tmp_dir, config.output_dir)
+
+if __name__ == "__main__":
+    from yaml import safe_load
+    from difflib import unified_diff
+
+    with open("gprmax_config.yaml", "r") as f:
+        default_config = safe_load(f)
+    
+    with InputFile("test_0001.in", "test_0001") as file1, InputFile("test_0002.in", "test_0002") as file2:
+        config = GprMaxConfig(**default_config)
+
+        file1.write_randomized(config, 42)
+        file2.write_randomized(config, 42)
+
+    with open("test_0001.in", "r") as f1, open("test_0002.in", "r") as f2:
+        lines1 = f1.readlines()
+        lines2 = f2.readlines()
+        diff = unified_diff(lines1, lines2, n=0)
+        for l in diff:
+            print(l, end="")
+
+
+
