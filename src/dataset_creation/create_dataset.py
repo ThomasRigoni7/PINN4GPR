@@ -169,7 +169,7 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
         convert_geometry_to_np(tmp_dir/h5_file_name, (sim_output_dir/h5_file_name).with_suffix(".npy"), remove_files=True)
 
         # convert the snapshots and save a single npz file, they are in the input folder
-        convert_snapshots_to_np(tmp_dir, sim_output_dir / "snapshots", True)
+        convert_snapshots_to_np(tmp_dir, sim_output_dir / "snapshots", True, (3, 3))
         # delete the empty snapshot directories created by gprMax in the input folder
         dirs = input_dir.glob(f"{f.stem}_snaps*")
         for d in dirs:

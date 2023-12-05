@@ -34,9 +34,9 @@ materials: {
   # peplinsky soils: the last two values are min and max water content across samples, 
   # the actual values will be sampled during dataset creation based on general 
   # water content of the sample.
-  fouling: [0.9, 0.1, 2, 2.66, 0.03, 0.18],
+  fouling: [0, 1, 3, 2.66, 0.03, 0.18],
   PSS: [0.9, 0.1, 2, 2.66, 0.03, 0.18],
-  subsoil: [0.9, 0.1, 2, 2.66, 0.03, 0.18],
+  subsoil: [1, 0, 2, 2.66, 0.03, 0.18],
 }
 
 antenna_sleeper_distance: 0.465

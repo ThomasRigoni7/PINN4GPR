@@ -3,6 +3,7 @@ This module contains utility functions to convert results of the gprMax computat
 """
 
 import numpy as np
+from skimage.measure import block_reduce
 import h5py
 from pathlib import Path
 
@@ -109,7 +110,10 @@ def extract_snapshot_fields_numpy(snapshot_path: str | Path):
 
     return e_field, h_field
 
-def convert_snapshots_to_np(snapshot_folder : str | Path, output_file: str | Path, remove_files: bool = False) -> dict[str, np.ndarray]:
+def convert_snapshots_to_np(snapshot_folder : str | Path, 
+                            output_file: str | Path, 
+                            remove_files: bool = False, 
+                            pool_window: tuple[int, int] | None = None) -> dict[str, np.ndarray]:
     """
     Converts snapshots related to a full B-scan into numpy arrays.
 
@@ -127,6 +131,8 @@ def convert_snapshots_to_np(snapshot_folder : str | Path, output_file: str | Pat
         path to the output to store the results in `.npz` format
     remove_files : bool, default: False
         if set, deletes the original `.vti` files.
+    pool_window : tuple[int, int] | None, default: None
+        if set, applies average pooling of the specified size to the resulting snapshot.
 
     Returns
     -------
@@ -164,6 +170,11 @@ def convert_snapshots_to_np(snapshot_folder : str | Path, output_file: str | Pat
 
         a_scan_data_e_field = np.asarray(a_scan_data_e_field)
         a_scan_data_h_field = np.asarray(a_scan_data_h_field)
+        
+        # apply pooling
+        if pool_window is not None:
+            a_scan_data_e_field = block_reduce(a_scan_data_e_field, block_size=(1, pool_window[0], pool_window[1]), func=np.mean)
+            a_scan_data_h_field = block_reduce(a_scan_data_h_field, block_size=(1, 1, pool_window[0], pool_window[1]), func=np.mean)
         full_data[f"{str(a_scan_number).zfill(4)}_E"] = a_scan_data_e_field
         full_data[f"{str(a_scan_number).zfill(4)}_H"] = a_scan_data_h_field
         full_data[f"{str(a_scan_number).zfill(4)}_times"] = times
@@ -173,13 +184,15 @@ def convert_snapshots_to_np(snapshot_folder : str | Path, output_file: str | Pat
 
     np.savez(output_file, **full_data)
 
-    return full_data    
+    return full_data
 
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     # convert_geometry_to_np("data/geometry_2D_cylinders_clean_materials.txt")
-    data = convert_snapshots_to_np("gprmax_output_files/scan_0000", "scan_0000_snapshots")
+    data = convert_snapshots_to_np("gprmax_output_files_old/scan_0000", "scan_0000_snapshots")
+    pooled_data = convert_snapshots_to_np("gprmax_output_files_old/scan_0000", "scan_0000_snapshots_pooled", pool_window=(3, 3))
     print(data.keys())
     from ..visualization.misc import save_field_animation
-    save_field_animation(data["0001_E"], "gprmax_output_files/scan_0000/snapshots1.mp4")
+    save_field_animation(data["0000_E"], "gprmax_output_files_old/scan_0000/snapshots0.mp4")
+    save_field_animation(pooled_data["0000_E"], "gprmax_output_files_old/scan_0000/snapshots0_pooled.mp4")
