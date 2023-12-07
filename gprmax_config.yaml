@@ -62,7 +62,7 @@ sleepers_material: ["all"]
 sleepers_size: [0.17, 0.10, 0.002]
 
 # fouling and water content
-fouling_prob: 0.5
+fouling_prob: 0.2
 max_fouling_percentage: 1
 fouling_water_range: [0.03, 0.15]
 pss_water_range: [0.03, 0.15]

@@ -145,17 +145,16 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
         print("No NVIDIA GPU detected, pycuda package or the CUDA toolkit not installed. Falling back to CPU mode.")
 
     for f in input_dir.glob("*.in"):
-        # run sims
-        # with _nostdout():
         output_files_basename = f.stem
         sim_output_dir = output_dir / output_files_basename
         sim_output_dir.mkdir(parents=True, exist_ok=True)
 
         # create the temporary snapshot directories
-        for i in range(1, config.n_ascans + 1):
+        for i in range(1, n_ascans + 1):
             snapshot_dir = tmp_dir / f"{f.stem}_snaps{i}"
             snapshot_dir.mkdir(parents=True, exist_ok=True)
 
+        # run sims
         gprmax_run(str(f), n_ascans, geometry_fixed=False, geometry_only=geometry_only, gpu=gpus)
 
         # merge output A-scans
@@ -164,16 +163,17 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
             merge_files(str(tmp_dir/ output_files_basename), removefiles=True)
             (tmp_dir/merged_output_file_name).rename(sim_output_dir/merged_output_file_name)
         
+            # convert the snapshots and save a single npz file, they are in the input folder
+            convert_snapshots_to_np(tmp_dir, sim_output_dir / "snapshots", True, (3, 3))
+            # delete the empty snapshot directories created by gprMax in the input folder
+            dirs = input_dir.glob(f"{f.stem}_snaps*")
+            for d in dirs:
+                d.rmdir()
+        
         # convert output geometry in numpy format and discard initial files
         h5_file_name = output_files_basename + "_geometry.h5"
         convert_geometry_to_np(tmp_dir/h5_file_name, (sim_output_dir/h5_file_name).with_suffix(".npy"), remove_files=True)
 
-        # convert the snapshots and save a single npz file, they are in the input folder
-        convert_snapshots_to_np(tmp_dir, sim_output_dir / "snapshots", True, (3, 3))
-        # delete the empty snapshot directories created by gprMax in the input folder
-        dirs = input_dir.glob(f"{f.stem}_snaps*")
-        for d in dirs:
-            d.rmdir()
 
 
 

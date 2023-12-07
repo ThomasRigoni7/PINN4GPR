@@ -275,11 +275,12 @@ class InputFile():
                                    soil_number: int, 
                                    top_surface_roughness: None | float = None,
                                    bottom_surface_roughness: None | float = None,
-                                   add_top_water: bool = False):
+                                   add_top_water: bool = False,
+                                   add_bot_water: bool = False):
         """
         Writes the commands associated with a fractal box material.
 
-        Can add top or bottom surface roughness and water at the top of the layer.
+        Can add top or bottom surface roughness and water
 
         Parameters
         ----------
@@ -298,7 +299,9 @@ class InputFile():
         bottom_surface_roughness : None | float, default: None
             max height of the applied bottom surface roughness, not applied if None.
         add_top_water : bool, default: False
-            if set, add top water with a depth equal to the max height of the top surface roughness.
+            if set, add top water until the max height of the top surface roughness.
+        add_bot_water : bool, default: False
+            if set, add bottom water until min height of the bottom surface roughness.
         """
         assert len(material) == 4 or len(material) == 6, f"Material is specified by 4 or 6 float arguments, but {material} given."
         if len(material) == 4:
@@ -316,6 +319,7 @@ class InputFile():
         if top_surface_roughness is not None:
             top_surface = (0, position[1], 0, self.domain[0], position[1], self.domain[2])
             lower_limit = position[1] - top_surface_roughness
+            lower_limit = max(lower_limit, position[0])
             seed = self.random_generator.integers(2**32)
             self.write_command("add_surface_roughness", top_surface + (fractal_dimension, 1, 1, lower_limit, position[1], name.lower() + "_fractal_box", seed))
             if add_top_water:
@@ -324,7 +328,10 @@ class InputFile():
             seed = self.random_generator.integers(2**32)
             bottom_surface = (0, position[0], 0, self.domain[0], position[0], self.domain[2])
             upper_limit = position[0] + bottom_surface_roughness
+            upper_limit = min(upper_limit, position[1])
             self.write_command("add_surface_roughness", bottom_surface + (fractal_dimension, 1, 1, position[0], upper_limit, name.lower() + "_fractal_box", seed))
+            if add_bot_water:
+                self.write_command("add_surface_water", bottom_surface + (position[0], name.lower() + "_fractal_box"))
         self.write_line()
 
     def _clip_into_domain(self, coords: tuple[float, float, float]) -> tuple[float, float, float]:
@@ -364,8 +371,8 @@ class InputFile():
         material_name = "sleepers_material" if material_name is None else f"{material_name}_sleepers"
         self.write_command("material", list(material) + [material_name])
         for p in position:
-            p = self._clip_into_domain(p)
             p_end = self._clip_into_domain((p[0] + size[0], p[1] + size[1], p[1] + size[2]))
+            p = self._clip_into_domain(p)
             self.write_command("box", (*p, *p_end, material_name))
         
         self.write_line()
@@ -519,20 +526,16 @@ for t in snapshot_times:
         # WRITE LAYERS #
         ################
 
-        # SUBSOIL
-        self.write_fractal_box_material("Subsoil", subsoil_material, layer_positions["subsoil"], 
-                                        config.fractal_dimension, config.pep_soil_number, 
-                                        top_surface_roughness=config.layer_roughness["pss_subsoil"], 
-                                        bottom_surface_roughness=None,
-                                        add_top_water=water_infiltrations[0])
+        # FOULING
+        if is_fouled:
+            bottom_roughness = config.layer_roughness["fouling_asphalt"] if water_infiltrations[0] else None
+            self.write_fractal_box_material("Fouling", fouling_material, layer_positions["fouling"],
+                                            config.fractal_dimension, config.pep_soil_number,
+                                            top_surface_roughness=config.layer_roughness["top_fouling"],
+                                            bottom_surface_roughness=bottom_roughness,
+                                            add_top_water=False,
+                                            add_bot_water=water_infiltrations[0])
         
-        # PSS
-        bottom_roughness = config.layer_roughness["pss_subsoil"] if water_infiltrations[0] else None
-        self.write_fractal_box_material("PSS", pss_material, layer_positions["PSS"],
-                                        config.fractal_dimension, config.pep_soil_number,
-                                        top_surface_roughness=config.layer_roughness["asphalt_pss"],
-                                        bottom_surface_roughness=bottom_roughness,
-                                        add_top_water=water_infiltrations[1])
         # ASPHALT
         if AC_rail:
             bottom_roughness = config.layer_roughness["asphalt_pss"] if water_infiltrations[1] else None
@@ -540,15 +543,23 @@ for t in snapshot_times:
                                             config.fractal_dimension, 1,
                                             top_surface_roughness=config.layer_roughness["fouling_asphalt"],
                                             bottom_surface_roughness=bottom_roughness,
-                                            add_top_water=water_infiltrations[2])
-        # FOULING
-        if is_fouled:
-            bottom_roughness = config.layer_roughness["fouling_asphalt"] if water_infiltrations[2] else None
-            self.write_fractal_box_material("Fouling", fouling_material, layer_positions["fouling"],
-                                            config.fractal_dimension, config.pep_soil_number,
-                                            top_surface_roughness=config.layer_roughness["top_fouling"],
-                                            bottom_surface_roughness=bottom_roughness,
-                                            add_top_water=False)
+                                            add_top_water=False,
+                                            add_bot_water=water_infiltrations[1])
+
+        # PSS
+        bottom_roughness = config.layer_roughness["pss_subsoil"] if water_infiltrations[2] else None
+        self.write_fractal_box_material("PSS", pss_material, layer_positions["PSS"],
+                                        config.fractal_dimension, config.pep_soil_number,
+                                        top_surface_roughness=config.layer_roughness["asphalt_pss"],
+                                        bottom_surface_roughness=bottom_roughness,
+                                        add_top_water=False,
+                                        add_bot_water=water_infiltrations[2])
+        
+        # SUBSOIL
+        self.write_fractal_box_material("Subsoil", subsoil_material, layer_positions["subsoil"], 
+                                        config.fractal_dimension, config.pep_soil_number, 
+                                        top_surface_roughness=config.layer_roughness["pss_subsoil"])
+        
         # BALLAST
         self.write_ballast(config.materials["ballast"], layer_positions["ballast"])
 
@@ -569,26 +580,3 @@ for t in snapshot_times:
 
         # save geometry
         self.write_save_geometry(config.tmp_dir, config.output_dir)
-
-if __name__ == "__main__":
-    from yaml import safe_load
-    from difflib import unified_diff
-
-    with open("gprmax_config.yaml", "r") as f:
-        default_config = safe_load(f)
-    
-    with InputFile("test_0001.in", "test_0001") as file1, InputFile("test_0002.in", "test_0002") as file2:
-        config = GprMaxConfig(**default_config)
-
-        file1.write_randomized(config, 42)
-        file2.write_randomized(config, 42)
-
-    with open("test_0001.in", "r") as f1, open("test_0002.in", "r") as f2:
-        lines1 = f1.readlines()
-        lines2 = f2.readlines()
-        diff = unified_diff(lines1, lines2, n=0)
-        for l in diff:
-            print(l, end="")
-
-
-
