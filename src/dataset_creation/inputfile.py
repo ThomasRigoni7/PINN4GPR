@@ -471,16 +471,29 @@ for t in snapshot_times:
          - sleepers materials and position
          - ballast sieve curve and position
 
+        Returns information about the sampled variables.
+
         Parameters
         ----------
         config : GprMaxConfig
             configuration.
         seed : int | None, optional
             seed to use in the random number generators. The input file contents are deterministic as long as the same seed is used.
+
+        Returns
+        -------
+        dict[str]
+            dicionary containing information about the sampled values.
         """
+
+        info = {}
+
         self.random_generator = np.random.default_rng(seed)
-        self.write_line("## Generated with seed: " + str(self.random_generator.bit_generator.seed_seq.entropy))
+        seed = self.random_generator.bit_generator.seed_seq.entropy
+        info["seed"] = seed
+        self.write_line("## Generated with seed: " + str(seed))
         self.write_line()
+
         # general commands
         self.write_general_commands(self.title, config.domain, config.spatial_resolution, config.time_window, config.tmp_dir)
         # source and receiver
@@ -488,6 +501,7 @@ for t in snapshot_times:
                                    config.source_position, config.receiver_position, config.step_size)
         # sample track type:
         AC_rail = self.random_generator.choice([False, True])
+        info["AC rail"] = AC_rail
 
         # sample layer sizes
         sampled_layer_sizes = {}
@@ -500,11 +514,15 @@ for t in snapshot_times:
         if is_fouled:
             size = self.random_generator.beta(1.2, 2.5) * config.max_fouling_percentage * sampled_layer_sizes["ballast"]
             sampled_layer_sizes["fouling"] = size
+        info["is fouled"] = is_fouled
+        info["layer sizes"] = sampled_layer_sizes
 
         # sample water content between 0 and 1
         general_water_content = self.random_generator.beta(1.2, 2.5)
+        info["general water content"] = general_water_content
         # water infiltrations in fouling-asphalt, asphalt-PSS, PSS-subsoil
         water_infiltrations = self.random_generator.normal(general_water_content, 0.3, 3) > 0.5
+        info["water infiltrations"] = water_infiltrations
         
         sleepers_bottom_y = config.source_position[1] - config.antenna_sleeper_distance - config.sleepers_size[1]
         ballast_top_y = sleepers_bottom_y + 0.7 * config.sleepers_size[1]
@@ -516,11 +534,16 @@ for t in snapshot_times:
         if "all" in config.sleepers_material:
             config.sleepers_material = ["steel", "concrete", "wood"]
         sleepers_material_name = self.random_generator.choice(config.sleepers_material)
+        info["sleepers material"] = sleepers_material_name
 
         # TODO: replace water contents of fouling, pss and subsoil
         fouling_material = config.materials["fouling"]
         pss_material = config.materials["PSS"]
         subsoil_material = config.materials["subsoil"]
+        if is_fouled:
+            info["fouling water"] = fouling_material[4], fouling_material[5]
+        info["pss water"] = pss_material[4], pss_material[5]
+        info["subsoil water"] = subsoil_material[4], subsoil_material[5]
 
         ################
         # WRITE LAYERS #
@@ -571,6 +594,7 @@ for t in snapshot_times:
             all_sleepers_positions.append((pos, sleepers_bottom_y, 0))
             pos += config.sleepers_separation
         self.write_sleepers(config.materials[sleepers_material_name], all_sleepers_positions, config.sleepers_size, sleepers_material_name)
+        info["sleeper positions"] = [x for (x, y, z) in all_sleepers_positions]
 
         # snapshots
         if config.snapshot_times:
@@ -580,3 +604,5 @@ for t in snapshot_times:
 
         # save geometry
         self.write_save_geometry(config.tmp_dir, config.output_dir)
+
+        return info

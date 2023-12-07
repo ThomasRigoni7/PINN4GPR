@@ -1,5 +1,5 @@
 # general configuration
-n_samples: 1
+n_samples: 2
 
 generate_input: false
 geometry_only: false

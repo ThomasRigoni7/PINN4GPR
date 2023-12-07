@@ -10,6 +10,10 @@ import argparse
 from pathlib import Path
 from tqdm import tqdm
 from yaml import safe_load
+import pickle
+import numpy as np
+import collections
+import matplotlib.pyplot as plt
 
 from .convert_to_np import convert_geometry_to_np, convert_snapshots_to_np
 from .inputfile import InputFile
@@ -65,6 +69,109 @@ def _resolve_directories(config: GprMaxConfig):
     config.tmp_dir.mkdir(exist_ok=True, parents=True)
     config.output_dir.mkdir(exist_ok=True, parents=True)
     
+def _write_metadata_files(metadata: dict[str], metadata_dir: Path):
+    """
+    Creates the metadata files from the inputfiles metadata in create_gprmax_input_files().
+
+    Parameters
+    ----------
+    metadata : dict[str]
+        informations about the sampled values of the inputfiles
+    """
+    # write a file for each sample
+    metadata_dir.mkdir(exist_ok=True)
+    for file, i in metadata.items():
+        info_file = (metadata_dir / file).with_suffix(".txt")
+        with open(info_file, "w") as f:
+            for k, j in i.items():
+                f.write(f"{k}: {j}\n")
+
+    # write a single pkl file with all the informations
+    with open(metadata_dir / "all_data.pkl", "wb") as f:
+        pickle.dump(metadata, f)
+    
+    # calculate meaningful statistics for the dataset:
+    AC_rail = []        # percentage
+    is_fouled = []      # percentage
+    layer_sizes = {"fouling" : [], "ballast" : [], "asphalt" : [], "PSS" : []}    # distribution
+    general_water_content = []  # distribution
+    water_infiltrations = []    # pergentage for each layer
+    sleepers_material_counts = {"wood" : 0, "steel" : 0, "concrete": 0}      # percentage for each material
+    water_contents = {"fouling": [], "PSS": [], "subsoil": []} # distribution for min and max for each layer
+    sleeper_counts = [] # distribution 2 or 3 sleepers
+
+    for file, info in metadata.items():
+        AC_rail.append(info["AC rail"])
+        is_fouled.append(info["is fouled"])
+        for name, size in info["layer sizes"].items():
+            layer_sizes[name].append(size)
+        general_water_content.append(info["general water content"])
+        water_infiltrations.append(info["water infiltrations"])
+        mat = info["sleepers material"]
+        sleepers_material_counts[mat] += 1
+        if "fouling water" in info:
+            water_contents["fouling"].append(info["fouling water"])
+        water_contents["PSS"].append(info["pss water"])
+        water_contents["subsoil"].append(info["subsoil water"])
+        sleeper_counts.append(len(info["sleeper positions"]))
+    
+    AC_rail_percentage = np.array(AC_rail).mean()
+    is_fouled_percentage = np.array(is_fouled).mean()
+    layer_sizes_distrib = {}
+    for name, l in layer_sizes.items():
+        layer_sizes_distrib[name] = np.array(l)
+    general_water_content_distrib = np.array(general_water_content)
+    water_infiltrations_percentages = np.array(water_infiltrations).mean(axis=0)
+    layers_water_content_distrib = {}
+    for name, data in water_contents.items():
+        layers_water_content_distrib[name] = np.array(data)
+    sleepers_counts_distrib = collections.Counter(sleeper_counts)
+
+    # write statistics
+    with open(metadata_dir / "statistics.txt", "w") as f:
+        f.write(f"AC rail percentage: {AC_rail_percentage}\n")
+        f.write(f"fouled percentage: {is_fouled_percentage}\n")
+        f.write(f"water infiltrations percentages: {water_infiltrations_percentages}\n")
+        f.write(f"sleeper number distribution: {sleepers_counts_distrib}\n")
+        f.write(f"sleeper material distribution: {sleepers_material_counts}\n")
+
+    # plot distributions
+    plots_dir = metadata_dir / "plots"
+    plots_dir.mkdir(exist_ok=True)
+
+    # layer sizes
+    fig, axs = plt.subplots(ncols=4, sharey=True, tight_layout=True)
+    fig.suptitle("layer sizes")
+    axs[0].hist(layer_sizes_distrib["fouling"], bins = 100)
+    axs[0].set_title("fouling")
+    axs[1].hist(layer_sizes_distrib["ballast"], bins = 100)
+    axs[1].set_title("ballast")
+    axs[2].hist(layer_sizes_distrib["asphalt"], bins = 100)
+    axs[2].set_title("asphalt")
+    axs[3].hist(layer_sizes_distrib["PSS"], bins = 100)
+    axs[3].set_title("PSS")
+    fig.savefig(plots_dir / "layer_sizes.png")
+
+    # general water content
+    fig, ax = plt.subplots()
+    fig.suptitle("General water content distribution")
+    ax.hist(general_water_content_distrib, bins = 100)
+    fig.savefig(plots_dir / "general_water_content.png")
+
+    # layers water ranges
+    fig, axs = plt.subplots(ncols=3, sharex=True, sharey=True, tight_layout = True)
+    fig.suptitle("water content distributions")
+    axs[0].hist2d(layers_water_content_distrib["fouling"][:, 0], layers_water_content_distrib["fouling"][:, 1], bins=100)
+    axs[0].set_title("fouling")
+    axs[1].hist2d(layers_water_content_distrib["PSS"][:, 0], layers_water_content_distrib["PSS"][:, 1], bins=100)
+    axs[1].set_title("PSS")
+    axs[2].hist2d(layers_water_content_distrib["subsoil"][:, 0], layers_water_content_distrib["subsoil"][:, 1], bins=100)
+    axs[2].set_title("subsoil")
+    fig.savefig(plots_dir / "water_content.png")
+
+
+
+
 
 def create_gprmax_input_files(config: GprMaxConfig):
     """
@@ -74,11 +181,15 @@ def create_gprmax_input_files(config: GprMaxConfig):
 
     The intermediate A-scans are set to be written in 'output_dir/tmp/'
 
+    Creates an pickled file containing data about the random values of all the input files created.
+
     Parameters
     ----------
     config : GprMaxConfig
         gprMax configuration
     """
+
+    metadata = {}
     
     for file_number in tqdm(range(config.n_samples)):
         filename = f"scan_{str(file_number).zfill(4)}"
@@ -87,7 +198,11 @@ def create_gprmax_input_files(config: GprMaxConfig):
         with InputFile(file_path.with_suffix(".in"), filename) as f:
             output_dir = config.output_dir / filename
             new_config = config.model_copy(update={"output_dir": output_dir}, deep=True)
-            f.write_randomized(new_config)
+            metadata[filename] = f.write_randomized(new_config)
+    
+    _write_metadata_files(metadata, config.input_dir / "metadata")
+    
+
 
 ##############################################
 # Create a nostdout context
