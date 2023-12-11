@@ -29,7 +29,7 @@ materials: {
   concrete: [8, 0.01, 1, 0],
   gravel: [5, 0, 1, 0],
   wood: [2, 0.01, 1, 0],
-  steel: [1, inf, 1, 0], # perfect electric conductor (pec)
+  steel: [1, 1.4e6, 1000, 0],
   asphalt: [8, 0.01, 1, 0],
   # peplinsky soils: the last two values are min and max water content across samples, 
   # the actual values will be sampled during dataset creation based on general 
