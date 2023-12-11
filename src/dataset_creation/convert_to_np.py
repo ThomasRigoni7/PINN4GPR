@@ -7,15 +7,65 @@ from skimage.measure import block_reduce
 import h5py
 from pathlib import Path
 
+def _update_debye_er(materials_list: list[str], debye_materials: list[str], frequency: float=1e9):
+    """
+    Calculates the relative permittivity of the Debye materials at the specified frequency, 
+    given the list of materials and debye declarations.
+
+    Most of this code has been adapted from gprMax source code.
+
+    Returns
+    -------
+    list 
+        the list of materials, with updated relative permittivity.
+    """
+    from gprMax.materials import Material
+    for dm in debye_materials:
+        name = dm[-1]
+        mat = [m for m in materials_list if name in m]
+        if len(mat) == 0:
+            raise ValueError(f"Error: trying to calculate Debye epsilon r for material '{name}', but material declaration not found!")
+        mat = mat[0]
+
+        # setup material
+        m = Material(0, name)
+        m.er = float(mat[0])
+        m.se = float(mat[1])
+        m.mr = float(mat[2])
+        m.sm = float(mat[3])
+        poles = int(dm[0])
+        m.type = 'debye'
+        m.poles = poles
+        m.averagable = False
+        for pole in range(1, 2 * poles, 2):
+            if float(dm[pole]) > 0:
+                m.deltaer.append(float(dm[pole]))
+                m.tau.append(float(dm[pole + 1]))
+        
+        # calculate er
+        er = m.calculate_er(frequency)
+        index = materials_list.index(mat)
+        materials_list[index][0] = er.real
+
+    return materials_list
+
+
 def _parse_materials_file(file_path: str | Path) -> list:
     """
     Parses the geometry materials file.
     """
     with open(file_path, "r") as f:
-        materials = f.read().splitlines()
+        lines = f.read().splitlines()
 
-    materials = [l.split() for l in materials if "#material" in l]
-    materials = [l[1:-1] for l in materials]
+    materials = [l.split() for l in lines if "#material" in l]
+    materials = [l[1:] for l in materials]
+
+    debye_materials = [l.split() for l in lines if "#add_dispersion_debye" in l]
+    debye_materials = [l[1:] for l in debye_materials]
+
+    materials = _update_debye_er(materials, debye_materials)
+    materials = [l[:-1] for l in materials]
+
     return materials
 
 def convert_geometry_to_np(filename: str | Path, output_file: str | Path | None = None, remove_files: bool = False) -> np.ndarray:

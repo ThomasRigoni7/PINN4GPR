@@ -372,6 +372,8 @@ class InputFile():
         self.write_command("material", list(material) + [material_name])
         for p in position:
             p_end = self._clip_into_domain((p[0] + size[0], p[1] + size[1], p[1] + size[2]))
+            if p_end[0] < self.spatial_resolution[0]:
+                p_end = self.spatial_resolution, p_end[1], p_end[2]
             p = self._clip_into_domain(p)
             self.write_command("box", (*p, *p_end, material_name))
         
@@ -536,10 +538,20 @@ for t in snapshot_times:
         sleepers_material_name = self.random_generator.choice(config.sleepers_material)
         info["sleepers material"] = sleepers_material_name
 
-        # TODO: replace water contents of fouling, pss and subsoil
-        fouling_material = config.materials["fouling"]
-        pss_material = config.materials["PSS"]
-        subsoil_material = config.materials["subsoil"]
+        # replace water contents of fouling, pss and subsoil with sampled ones
+        fouling_water_range = config.materials["fouling"][4], config.materials["fouling"][5]
+        pss_water_range = config.materials["PSS"][4], config.materials["PSS"][5]
+        subsoil_water_range = config.materials["subsoil"][4], config.materials["subsoil"][5]
+        ranges = [fouling_water_range, pss_water_range, subsoil_water_range]
+        sampled_ranges = []
+        for vmin, vmax in ranges:
+            central = self.random_generator.normal(general_water_content, 0.1) * (vmax - vmin) + vmin
+            sampled_range = max(central - 0.02, vmin), min(central+0.02, vmax)
+            sampled_ranges.append(sampled_range)
+
+        fouling_material = config.materials["fouling"][:4] + sampled_ranges[0]
+        pss_material = config.materials["PSS"][:4] + sampled_ranges[1]
+        subsoil_material = config.materials["subsoil"][:4] + sampled_ranges[2]
         if is_fouled:
             info["fouling water"] = fouling_material[4], fouling_material[5]
         info["pss water"] = pss_material[4], pss_material[5]

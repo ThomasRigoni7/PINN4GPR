@@ -9,18 +9,21 @@ from ..dataset_creation.inputfile import InputFile
 from ..dataset_creation.configuration import GprMaxConfig
 
 
-def test_inputfile_deterministic():
+def test_inputfile_deterministic(delete_files:bool = True):
+
+    test_path_1 = Path("test_0001.in")
+    test_path_2 = Path("test_0002.in")
 
     with open("gprmax_config.yaml", "r") as f:
         default_config = safe_load(f)
     config = GprMaxConfig(**default_config)
     
-    with InputFile("test_0001.in", "test") as file1, InputFile("test_0002.in", "test") as file2:
+    with InputFile(test_path_1, "test") as file1, InputFile(test_path_2, "test") as file2:
 
         file1.write_randomized(config, 42)
         file2.write_randomized(config, 42)
 
-    with open("test_0001.in", "r") as f1, open("test_0002.in", "r") as f2:
+    with open(test_path_1, "r") as f1, open(test_path_2, "r") as f2:
         lines1 = f1.readlines()
         lines2 = f2.readlines()
 
@@ -33,6 +36,10 @@ def test_inputfile_deterministic():
         print("DIFF:")
         for l in diff:
             print(l, end="")
+    
+    if delete_files:
+        test_path_1.unlink()
+        test_path_2.unlink()
 
 
 def test_inputfile_construction():
@@ -41,6 +48,7 @@ def test_inputfile_construction():
     config = GprMaxConfig(**default_config)
     config.input_dir = Path("test_inputfiles/")
     config.output_dir = Path("test_outputfiles/")
+    config.snapshot_times = []
 
     config.n_samples = 20
 

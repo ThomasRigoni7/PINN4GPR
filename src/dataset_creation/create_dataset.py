@@ -124,7 +124,10 @@ def _write_metadata_files(metadata: dict[str], metadata_dir: Path):
     water_infiltrations_percentages = np.array(water_infiltrations).mean(axis=0)
     layers_water_content_distrib = {}
     for name, data in water_contents.items():
-        layers_water_content_distrib[name] = np.array(data)
+        d = np.array(data)
+        if d.ndim == 1:
+            d = d[None, :]
+        layers_water_content_distrib[name] = d
     sleepers_counts_distrib = collections.Counter(sleeper_counts)
 
     # write statistics
@@ -157,20 +160,19 @@ def _write_metadata_files(metadata: dict[str], metadata_dir: Path):
     fig.suptitle("General water content distribution")
     ax.hist(general_water_content_distrib, bins = 100)
     fig.savefig(plots_dir / "general_water_content.png")
-
+    
     # layers water ranges
     fig, axs = plt.subplots(ncols=3, sharex=True, sharey=True, tight_layout = True)
     fig.suptitle("water content distributions")
-    axs[0].hist2d(layers_water_content_distrib["fouling"][:, 0], layers_water_content_distrib["fouling"][:, 1], bins=100)
+    if is_fouled_percentage > 0.0:
+        axs[0].hist2d(layers_water_content_distrib["fouling"][:, 0], layers_water_content_distrib["fouling"][:, 1], bins=20)
     axs[0].set_title("fouling")
-    axs[1].hist2d(layers_water_content_distrib["PSS"][:, 0], layers_water_content_distrib["PSS"][:, 1], bins=100)
+    axs[1].hist2d(layers_water_content_distrib["PSS"][:, 0], layers_water_content_distrib["PSS"][:, 1], bins=20)
     axs[1].set_title("PSS")
-    axs[2].hist2d(layers_water_content_distrib["subsoil"][:, 0], layers_water_content_distrib["subsoil"][:, 1], bins=100)
+    axs[2].hist2d(layers_water_content_distrib["subsoil"][:, 0], layers_water_content_distrib["subsoil"][:, 1], bins=20)
     axs[2].set_title("subsoil")
     fig.savefig(plots_dir / "water_content.png")
-
-
-
+    plt.close("all")
 
 
 def create_gprmax_input_files(config: GprMaxConfig):
@@ -287,7 +289,7 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
         
         # convert output geometry in numpy format and discard initial files
         h5_file_name = output_files_basename + "_geometry.h5"
-        convert_geometry_to_np(tmp_dir/h5_file_name, (sim_output_dir/h5_file_name).with_suffix(".npy"), remove_files=True)
+        convert_geometry_to_np(tmp_dir/h5_file_name, (sim_output_dir/h5_file_name).with_suffix(".npy"), remove_files=False)
 
 
 
