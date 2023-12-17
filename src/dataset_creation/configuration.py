@@ -48,8 +48,7 @@ class GprMaxConfig(BaseModel):  # numpydoc ignore=PR01
     sleepers_size: tuple[float, float, float]
 
     # Fouling/water content
-    fouling_prob: float
-    max_fouling_percentage: float
+    fouling_box_threshold: float
     fouling_water_range: tuple[float, float]
     pss_water_range: tuple[float, float]
 

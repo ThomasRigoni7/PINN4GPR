@@ -93,6 +93,7 @@ def _write_metadata_files(metadata: dict[str], metadata_dir: Path):
     # calculate meaningful statistics for the dataset:
     AC_rail = []        # percentage
     is_fouled = []      # percentage
+    fouling_level = []  # distribution
     layer_sizes = {"fouling" : [], "ballast" : [], "asphalt" : [], "PSS" : []}    # distribution
     general_water_content = []  # distribution
     water_infiltrations = []    # pergentage for each layer
@@ -103,6 +104,7 @@ def _write_metadata_files(metadata: dict[str], metadata_dir: Path):
     for file, info in metadata.items():
         AC_rail.append(info["AC rail"])
         is_fouled.append(info["is fouled"])
+        fouling_level.append(info["fouling level"])
         for name, size in info["layer sizes"].items():
             layer_sizes[name].append(size)
         general_water_content.append(info["general water content"])
@@ -117,6 +119,7 @@ def _write_metadata_files(metadata: dict[str], metadata_dir: Path):
     
     AC_rail_percentage = np.array(AC_rail).mean()
     is_fouled_percentage = np.array(is_fouled).mean()
+    fouling_level = np.array(fouling_level)
     layer_sizes_distrib = {}
     for name, l in layer_sizes.items():
         layer_sizes_distrib[name] = np.array(l)
@@ -142,23 +145,28 @@ def _write_metadata_files(metadata: dict[str], metadata_dir: Path):
     plots_dir = metadata_dir / "plots"
     plots_dir.mkdir(exist_ok=True)
 
+    fig, ax = plt.subplots()
+    fig.suptitle("Fouling level")
+    ax.hist(fouling_level, bins = 20)
+    fig.savefig(plots_dir / "fouling_level.png")
+
     # layer sizes
     fig, axs = plt.subplots(ncols=4, sharey=True, tight_layout=True)
     fig.suptitle("layer sizes")
-    axs[0].hist(layer_sizes_distrib["fouling"], bins = 100)
+    axs[0].hist(layer_sizes_distrib["fouling"], bins = 20)
     axs[0].set_title("fouling")
-    axs[1].hist(layer_sizes_distrib["ballast"], bins = 100)
+    axs[1].hist(layer_sizes_distrib["ballast"], bins = 20)
     axs[1].set_title("ballast")
-    axs[2].hist(layer_sizes_distrib["asphalt"], bins = 100)
+    axs[2].hist(layer_sizes_distrib["asphalt"], bins = 20)
     axs[2].set_title("asphalt")
-    axs[3].hist(layer_sizes_distrib["PSS"], bins = 100)
+    axs[3].hist(layer_sizes_distrib["PSS"], bins = 20)
     axs[3].set_title("PSS")
     fig.savefig(plots_dir / "layer_sizes.png")
 
     # general water content
     fig, ax = plt.subplots()
     fig.suptitle("General water content distribution")
-    ax.hist(general_water_content_distrib, bins = 100)
+    ax.hist(general_water_content_distrib, bins = 20)
     fig.savefig(plots_dir / "general_water_content.png")
     
     # layers water ranges
@@ -289,7 +297,7 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
         
         # convert output geometry in numpy format and discard initial files
         h5_file_name = output_files_basename + "_geometry.h5"
-        convert_geometry_to_np(tmp_dir/h5_file_name, (sim_output_dir/h5_file_name).with_suffix(".npy"), remove_files=False)
+        convert_geometry_to_np(tmp_dir/h5_file_name, (sim_output_dir/h5_file_name).with_suffix(".npy"), remove_files=True)
 
 
 

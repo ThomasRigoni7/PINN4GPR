@@ -44,16 +44,16 @@ antenna_sleeper_distance: 0.465
 # interval in which to sample the layer sizes, 
 # asphalt only used for AC rail
 layer_sizes: {
-  ballast: [0.3, 0.5],
-  asphalt: [0.05, 0.1],
-  PSS: [0.2, 0.4]
+  ballast: [0.2, 0.35],
+  asphalt: [0.05, 0.08],
+  PSS: [0.25, 0.40]
 }
 # roughness of the layers
 layer_roughness: {
   top_fouling: 0.02,
-  fouling_asphalt: 0.02,
-  asphalt_pss: 0.03,
-  pss_subsoil: 0.05
+  fouling_asphalt: 0.01,
+  asphalt_pss: 0.01,
+  pss_subsoil: 0.03
 }
 
 # sleepers
@@ -62,8 +62,7 @@ sleepers_material: ["all"]
 sleepers_size: [0.17, 0.10, 0.002]
 
 # fouling and water content
-fouling_prob: 0.2
-max_fouling_percentage: 1
+fouling_box_threshold: 0.7
 fouling_water_range: [0.03, 0.15]
 pss_water_range: [0.03, 0.15]
 

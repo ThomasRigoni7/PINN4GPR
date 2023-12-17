@@ -32,6 +32,49 @@ class BallastSimulation:
         self.buffer_y = buffer_y
         self.verbose = verbose
 
+    @classmethod
+    def get_clean_ballast_radii_distrib(cls) -> np.ndarray:
+        """
+        Returns the radii distribution for clean ballast without fouling.
+
+        Returns
+        -------
+        np.ndarray
+            The radii distribution
+        """
+        ballast_radii_distrib = np.array([
+            [0.063, 0.050, 0.15],
+            [0.050, 0.040, 0.45],
+            [0.040, 0.0315, 0.33],
+            [0.0315, 0.0224, 0.05],
+            [0.0224, 0.00476, 0.02]
+        ])
+        # convert diameters to radiuses
+        ballast_radii_distrib[:, 0:2] = ballast_radii_distrib[:, 0:2] / 2
+        return ballast_radii_distrib
+    
+    @classmethod
+    def get_fouled_ballast_radii_distrib(cls) -> np.ndarray:
+        """
+        Returns the radii distribution for very fouled ballast.
+
+        Returns
+        -------
+        np.ndarray
+            The radii distribution
+        """
+        ballast_radii_distrib = np.array([
+            [0.063, 0.050, 0.10],
+            [0.050, 0.040, 0.30],
+            [0.040, 0.0315, 0.25],
+            [0.0315, 0.0224, 0.15],
+            [0.0224, 0.00476, 0.20]
+        ])
+        # convert diameters to radiuses
+        ballast_radii_distrib[:, 0:2] = ballast_radii_distrib[:, 0:2] / 2
+        return ballast_radii_distrib
+
+
     def _get_standard_sieve_bounds(self) -> np.ndarray:
         """
         Returns the standard sieve curve, according to Gleisschotter 32/50, class 1 & 2
@@ -122,9 +165,9 @@ class BallastSimulation:
         req_void_cur = 1
         timeout_start = time.time()
 
-        # if the speci
+        # if no specified radii distribution, use the standard sieve bounds and sample a distribution.
         radii_distribution = self.input_radii_distribution
-        if radii_distribution == None:
+        if radii_distribution is None:
             radii_distribution = self.sample_radii_distribution(self._get_standard_sieve_bounds(), random_generator)
         
         for grain in radii_distribution:
@@ -252,7 +295,16 @@ class BallastSimulation:
         return res
 
 if __name__ == "__main__":
-    simulation = BallastSimulation((1.5, 0.4), buffer_y=0.4)
-    ballast_stones = simulation.run(display=True)
+    from scipy.stats import beta as beta_distrib
 
-    print("Final number of ballast stones:", len(ballast_stones))
+    clean_ballast_radii_distrib = BallastSimulation.get_clean_ballast_radii_distrib()
+    
+    fouled_ballast_radii_distrib = BallastSimulation.get_fouled_ballast_radii_distrib()
+
+    simulation = BallastSimulation((1.5, 0.4), buffer_y=0.4, radii_distribution=clean_ballast_radii_distrib)
+    ballast_stones = simulation.run(display=True)
+    print("Final number of ballast stones in clean ballast:", len(ballast_stones))
+
+    simulation = BallastSimulation((1.5, 0.4), buffer_y=0.4, radii_distribution=fouled_ballast_radii_distrib)
+    ballast_stones = simulation.run(display=True)
+    print("Final number of ballast stones in fouled ballast:", len(ballast_stones))

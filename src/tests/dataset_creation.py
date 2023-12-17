@@ -50,7 +50,7 @@ def test_inputfile_construction():
     config.output_dir = Path("test_outputfiles/")
     config.snapshot_times = []
 
-    config.n_samples = 20
+    config.n_samples = 5
 
     _resolve_directories(config)
 

@@ -85,10 +85,10 @@ def convert_geometry_to_np(filename: str | Path, output_file: str | Path | None 
     Returns
     -------
     ret : np.ndarray of shape [4, height, width]
-        - `ret[0]` contains the relative permittivity, 
-        - `ret[1]` contains the conductivity,
-        - `ret[2]` contains the relative permeability,
-        - `ret[3]` contains the magnetic loss.
+        - `ret[0]` contains the relative permittivity (epsilon), 
+        - `ret[1]` contains the conductivity (sigma),
+        - `ret[2]` contains the relative permeability (mu),
+        - `ret[3]` contains the magnetic loss (sigma*).
     """
     h5_path = Path(filename).with_suffix(".h5")
     txt_path = h5_path.with_name(h5_path.with_suffix("").name + "_materials").with_suffix(".txt")
@@ -240,9 +240,10 @@ def convert_snapshots_to_np(snapshot_folder : str | Path,
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     # convert_geometry_to_np("data/geometry_2D_cylinders_clean_materials.txt")
-    data = convert_snapshots_to_np("gprmax_output_files_old/scan_0000", "scan_0000_snapshots")
-    pooled_data = convert_snapshots_to_np("gprmax_output_files_old/scan_0000", "scan_0000_snapshots_pooled", pool_window=(3, 3))
-    print(data.keys())
-    from ..visualization.misc import save_field_animation
-    save_field_animation(data["0000_E"], "gprmax_output_files_old/scan_0000/snapshots0.mp4")
-    save_field_animation(pooled_data["0000_E"], "gprmax_output_files_old/scan_0000/snapshots0_pooled.mp4")
+    # data = convert_snapshots_to_np("gprmax_output_files_old/scan_0000", "scan_0000_snapshots")
+    # pooled_data = convert_snapshots_to_np("gprmax_output_files_old/scan_0000", "scan_0000_snapshots_pooled", pool_window=(3, 3))
+    # print(data.keys())
+    # from ..visualization.misc import save_field_animation
+    # save_field_animation(data["0000_E"], "gprmax_output_files_old/scan_0000/snapshots0.mp4")
+    # save_field_animation(pooled_data["0000_E"], "gprmax_output_files_old/scan_0000/snapshots0_pooled.mp4")
+    print(convert_snapshots_to_np("gprmax_tmp_files/", "prova_wavefield").keys())

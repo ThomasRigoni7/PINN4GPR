@@ -171,15 +171,13 @@ class InputFile():
     def write_ballast(self, 
                       ballast_material: tuple[float, float, float, float], 
                       position: tuple[float],
-                      fouling_height: float = None,
-                      fouling_peplinski_material: list|tuple = None,
-                      fractal_dimension: float = None,
-                      pep_soil_number: int = None
+                      fouling_level: float = 0.0
                       ):
         """
         Write to file the commands related to ballast stones and its associated fouling.
         
         The ballast position is generated on the fly, using a pymunk simulation. See :class:`.BallastSimulation`.
+        
 
         Parameters
         ----------
@@ -187,34 +185,24 @@ class InputFile():
             material composing the ballast.
         position : tuple[float]
             initial and final height in meters of the ballast layer from the bottom of the model.
-        fouling_height : float
-            height of the fouling in meters, from the bottom of the ballast layer.
-        fouling_peplinski_material : list | tuple
-            fouling peplinski material
-        fractal_dimension : float
-            fractal dimension of the box representing the fouling.
-        pep_soil_number : int
-            number of different peplinski fractal materials composing the fouling layer.
+        fouling_level : float, default: 0
+            fouling level in the interval [0, 1] that determines the size of the ballast. 
+            A higher `fouling_level` corresponds to smaller ballast stones, on average. 
+            The precise distribution is obtained by linear interpolation between the values of a clean and fouled ballast.
         """
         assert len(ballast_material) == 4, f"Ballast material is specified by 4 float arguments, but {ballast_material} given."
+
+        # calculate the ballast radii distribution, based on the fouling level
+        clean_distrib = BallastSimulation.get_clean_ballast_radii_distrib()
+        fouled_distrib = BallastSimulation.get_fouled_ballast_radii_distrib()
+        interpolated_values = clean_distrib[:, 2] * (1-fouling_level) + fouled_distrib[:, 2] * fouling_level
+        radii_distrib = np.hstack([clean_distrib[:, 0:2], interpolated_values.reshape(-1, 1)])
 
         self.write_line("## Ballast:")
         self.write_command("material", list(ballast_material) + ["ballast"])
 
-        if fouling_height is not None and fouling_height > 0:
-            assert fouling_peplinski_material is not None and len(fouling_peplinski_material) == 6, f"""
-                Fouling height specified and higher than 0, but peplinski fouling material has incorrect format. 
-                Expected 6 floats, but {fouling_peplinski_material} given."""
-            assert fractal_dimension is not None and pep_soil_number is not None, f"""
-                Fractal dimension and peplinski soil number must be specified if fouling present.
-                Got fractal_dimension: {fractal_dimension},
-                pep_soil_number: {pep_soil_number}"""
-            self.write_command("soil_peplinski", list(fouling_peplinski_material) + ["fouling"])
-            self.write_command("fractal_box", (0, position[0], 0, self.domain[0], position[0] + fouling_height, self.domain[2], 
-                                               fractal_dimension, 1, 1, 1, pep_soil_number, "fouling", "fouling_box", self.random_generator.integers(0, 2**31)))
-
         ballast_height = position[1] - position[0]
-        simulation = BallastSimulation((self.domain[0], ballast_height), buffer_y=0.4)
+        simulation = BallastSimulation((self.domain[0], ballast_height), buffer_y=0.4, radii_distribution=radii_distrib)
         seed = self.random_generator.integers(0, 2**32)
         ballast_stones = simulation.run(random_seed=seed)
         for stone in ballast_stones:
@@ -439,6 +427,25 @@ for t in snapshot_times:
 
 
     def _build_layer_positions(self, ballast_top_y: float, sampled_layer_sizes: dict[str, float], layer_roughness: dict[str, float], AC_rail: bool):
+        """
+        Builds the layer positions form their sizes and initial position.
+
+        Parameters
+        ----------
+        ballast_top_y : float
+            Y value of the top of the ballast layer, in meters
+        sampled_layer_sizes : dict[str, float]
+            sampled layer sizes.
+        layer_roughness : dict[str, float]
+            roughness to apply to the layers
+        AC_rail : bool
+            If set, adds the asphalt layer below the ballast.
+
+        Returns
+        -------
+        dict[str, tuple[float,float]]
+            Layer positions, each value is of the form (bottom height, top height)
+        """
         layer_positions = {}
         layer_positions["ballast"] = ballast_top_y - sampled_layer_sizes["ballast"], ballast_top_y
         # fouling
@@ -511,11 +518,13 @@ for t in snapshot_times:
             size = self.random_generator.beta(2, 2) * (layer_range[1] - layer_range[0]) + layer_range[0]
             sampled_layer_sizes[layer_name] = size
         
-        # sample fouling size
-        is_fouled = self.random_generator.uniform() < config.fouling_prob
+        # sample fouling level
+        fouling_level = self.random_generator.beta(1.2, 2.5)
+        is_fouled = fouling_level > config.fouling_box_threshold
         if is_fouled:
-            size = self.random_generator.beta(1.2, 2.5) * config.max_fouling_percentage * sampled_layer_sizes["ballast"]
+            size = fouling_level * sampled_layer_sizes["ballast"]
             sampled_layer_sizes["fouling"] = size
+        info["fouling level"] = fouling_level
         info["is fouled"] = is_fouled
         info["layer sizes"] = sampled_layer_sizes
 
@@ -523,7 +532,7 @@ for t in snapshot_times:
         general_water_content = self.random_generator.beta(1.2, 2.5)
         info["general water content"] = general_water_content
         # water infiltrations in fouling-asphalt, asphalt-PSS, PSS-subsoil
-        water_infiltrations = self.random_generator.normal(general_water_content, 0.3, 3) > 0.5
+        water_infiltrations = self.random_generator.normal(general_water_content, 0.3, 3) > 0.8
         info["water infiltrations"] = water_infiltrations
         
         sleepers_bottom_y = config.source_position[1] - config.antenna_sleeper_distance - config.sleepers_size[1]
@@ -596,7 +605,7 @@ for t in snapshot_times:
                                         top_surface_roughness=config.layer_roughness["pss_subsoil"])
         
         # BALLAST
-        self.write_ballast(config.materials["ballast"], layer_positions["ballast"])
+        self.write_ballast(config.materials["ballast"], layer_positions["ballast"], fouling_level)
 
         # SLEEPERS
         first_sleeper_position = round(self.random_generator.random() * config.sleepers_separation - config.sleepers_size[0] + config.spatial_resolution[0], 2)
