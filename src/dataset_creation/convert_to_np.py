@@ -223,8 +223,10 @@ def convert_snapshots_to_np(snapshot_folder : str | Path,
         
         # apply pooling
         if pool_window is not None:
-            a_scan_data_e_field = block_reduce(a_scan_data_e_field, block_size=(1, pool_window[0], pool_window[1]), func=np.mean)
-            a_scan_data_h_field = block_reduce(a_scan_data_h_field, block_size=(1, 1, pool_window[0], pool_window[1]), func=np.mean)
+            if a_scan_data_e_field.size > 0:
+                a_scan_data_e_field = block_reduce(a_scan_data_e_field, block_size=(1, pool_window[0], pool_window[1]), func=np.mean)
+            if a_scan_data_h_field.size > 0:
+                a_scan_data_h_field = block_reduce(a_scan_data_h_field, block_size=(1, 1, pool_window[0], pool_window[1]), func=np.mean)
         full_data[f"{str(a_scan_number).zfill(4)}_E"] = a_scan_data_e_field
         full_data[f"{str(a_scan_number).zfill(4)}_H"] = a_scan_data_h_field
         full_data[f"{str(a_scan_number).zfill(4)}_times"] = times

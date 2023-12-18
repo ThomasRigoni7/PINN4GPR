@@ -46,13 +46,12 @@ class GprMaxConfig(BaseModel):  # numpydoc ignore=PR01
 
     # Sleepers
     sleepers_separation: float
-    sleepers_material: list[str]
-    sleepers_size: tuple[float, float, float]
+    sleepers_material_probabilities: dict[str, float]
+    sleepers_sizes: dict[str, tuple[float, float, float]]
 
     # Fouling/water content
     fouling_box_threshold: float
-    fouling_water_range: tuple[float, float]
-    pss_water_range: tuple[float, float]
+    water_infiltration_threshold: float
 
     # Snapshots
     snapshot_times: list[float]

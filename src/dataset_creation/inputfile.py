@@ -512,7 +512,6 @@ for t in snapshot_times:
         track_type = self.random_generator.choice(
             list(config.track_configuration_probabilities.keys()),
             p=list(config.track_configuration_probabilities.values()))
-        print("type:", track_type)
         info["track type"] = track_type
 
         # sample layer sizes
@@ -535,38 +534,49 @@ for t in snapshot_times:
         general_water_content = self.random_generator.beta(1.2, 2.5)
         info["general water content"] = general_water_content
         # water infiltrations in fouling-asphalt, asphalt-PSS, PSS-subsoil
-        water_infiltrations = self.random_generator.normal(general_water_content, 0.3, 3) > 0.8
+        water_infiltrations = self.random_generator.normal(general_water_content, 0.2, 3) > config.water_infiltration_threshold
         info["water infiltrations"] = water_infiltrations
         
-        sleepers_bottom_y = config.source_position[1] - config.antenna_sleeper_distance - config.sleepers_size[1]
-        ballast_top_y = sleepers_bottom_y + 0.7 * config.sleepers_size[1]
+        # sample sleepers material
+        sleepers_material_name = self.random_generator.choice(list(config.sleepers_material_probabilities.keys()),
+                                                              p=list(config.sleepers_material_probabilities.values()))
+        info["sleepers material"] = sleepers_material_name
+        sleepers_size = config.sleepers_sizes[sleepers_material_name]
+        sleepers_bottom_y = config.source_position[1] - config.antenna_sleeper_distance - sleepers_size[1]
+        ballast_top_y = sleepers_bottom_y + 0.7 * sleepers_size[1]
 
         # calculate layer positions
         layer_positions = self._build_layer_positions(ballast_top_y, sampled_layer_sizes, config.layer_roughness, track_type=="AC_rail")
 
-        # sample sleepers material
-        if "all" in config.sleepers_material:
-            config.sleepers_material = ["steel", "concrete", "wood"]
-        sleepers_material_name = self.random_generator.choice(config.sleepers_material)
-        info["sleepers material"] = sleepers_material_name
 
+        # sample deterioration of substructure
+        general_deterioration = self.random_generator.beta(1.2, 2.5)
         # replace PSS with subgrade if the track type requires it
-        pss_material = config.materials["PSS"] if track_type=="PSS" else config.materials["subgrade"]
+        pss_material_healty = config.materials["PSS_healty"] if track_type=="PSS" else config.materials["subgrade_healty"]
+        pss_material_deteriorated = config.materials["PSS_deteriorated"] if track_type=="PSS" else config.materials["subgrade_deteriorated"]
+        subsoil_material_healty = config.materials["subsoil_good"]
+        subsoil_material_problematic = config.materials["subsoil_problematic"]
+        # linear interpolation of the healty and deteriorated values for peplinski soils
+        pss_material = np.array(pss_material_deteriorated) * general_deterioration + np.array(pss_material_healty) * (1-general_deterioration)
+        subsoil_material = np.array(subsoil_material_problematic) * general_deterioration + np.array(subsoil_material_healty) * (1-general_deterioration)
+        pss_material = tuple(pss_material)
+        subsoil_material = tuple(subsoil_material)
+
 
         # replace water contents of fouling, pss and subsoil with sampled ones
         fouling_water_range = config.materials["fouling"][4], config.materials["fouling"][5]
         pss_water_range = pss_material[4], pss_material[5]
-        subsoil_water_range = config.materials["subsoil"][4], config.materials["subsoil"][5]
+        subsoil_water_range = subsoil_material[4], subsoil_material[5]
         ranges = [fouling_water_range, pss_water_range, subsoil_water_range]
         sampled_ranges = []
         for vmin, vmax in ranges:
-            central = self.random_generator.normal(general_water_content, 0.1) * (vmax - vmin) + vmin
+            central = self.random_generator.normal(general_water_content, 0.2) * (vmax - vmin) + vmin
             sampled_range = max(central - 0.02, vmin), min(central+0.02, vmax)
             sampled_ranges.append(sampled_range)
 
         fouling_material = config.materials["fouling"][:4] + sampled_ranges[0]
         pss_material = pss_material[:4] + sampled_ranges[1]
-        subsoil_material = config.materials["subsoil"][:4] + sampled_ranges[2]
+        subsoil_material = subsoil_material[:4] + sampled_ranges[2]
         if is_fouled:
             info["fouling water"] = fouling_material[4], fouling_material[5]
         info["pss water"] = pss_material[4], pss_material[5]
@@ -615,13 +625,13 @@ for t in snapshot_times:
         self.write_ballast(config.materials["ballast"], layer_positions["ballast"], fouling_level)
 
         # SLEEPERS
-        first_sleeper_position = round(self.random_generator.random() * config.sleepers_separation - config.sleepers_size[0] + config.spatial_resolution[0], 2)
+        first_sleeper_position = round(self.random_generator.random() * config.sleepers_separation - sleepers_size[0] + config.spatial_resolution[0], 2)
         all_sleepers_positions = []
         pos = first_sleeper_position
         while pos < config.domain[0]:
             all_sleepers_positions.append((pos, sleepers_bottom_y, 0))
             pos += config.sleepers_separation
-        self.write_sleepers(config.materials[sleepers_material_name], all_sleepers_positions, config.sleepers_size, sleepers_material_name)
+        self.write_sleepers(config.materials[sleepers_material_name], all_sleepers_positions, sleepers_size, sleepers_material_name)
         info["sleeper positions"] = [x for (x, y, z) in all_sleepers_positions]
 
         # snapshots

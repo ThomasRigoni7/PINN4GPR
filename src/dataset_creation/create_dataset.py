@@ -295,8 +295,11 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
         # merge output A-scans
         if not geometry_only:
             merged_output_file_name = output_files_basename + "_merged.out"
-            merge_files(str(tmp_dir/ output_files_basename), removefiles=True)
-            (tmp_dir/merged_output_file_name).rename(sim_output_dir/merged_output_file_name)
+            if n_ascans > 1:
+                merge_files(str(tmp_dir/ output_files_basename), removefiles=True)
+                (tmp_dir/merged_output_file_name).rename(sim_output_dir/merged_output_file_name)
+            elif n_ascans == 1:
+                (tmp_dir/(output_files_basename + ".out")).rename(sim_output_dir/merged_output_file_name)
         
             # convert the snapshots and save a single npz file, they are in the input folder
             convert_snapshots_to_np(tmp_dir, sim_output_dir / "snapshots", True, (3, 3))
