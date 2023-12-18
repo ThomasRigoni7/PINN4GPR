@@ -10,6 +10,7 @@ class GprMaxConfig(BaseModel):  # numpydoc ignore=PR01
     """
     # general config
     n_samples: int
+    n_ascans: int
     generate_input: bool
     geometry_only: bool
 
@@ -19,10 +20,11 @@ class GprMaxConfig(BaseModel):  # numpydoc ignore=PR01
     output_dir: Path
 
     # simulation configuration
-    n_ascans: int
     domain: tuple[float, float, float]
     spatial_resolution: tuple[float, float, float]
     time_window: float
+
+    track_configuration_probabilities: dict[str, float]
 
     # source/receiver
     source_waveform: str

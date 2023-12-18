@@ -1,5 +1,8 @@
+#######################
 # general configuration
+#######################
 n_samples: 2
+n_ascans: 1
 
 generate_input: false
 geometry_only: false
@@ -9,7 +12,13 @@ tmp_dir: "gprmax_tmp_files/"
 output_dir: "gprmax_output_files/"
 
 # simulation configuration
-n_ascans: 2
+
+track_configuration_probabilities: {
+  PSS: 0.4,
+  AC_rail: 0.1,
+  subgrade: 0.5
+}
+
 domain: [1.5, 1.70, 0.002]
 spatial_resolution: [0.002, 0.002, 0.002]
 time_window: 2.5e-08
@@ -36,6 +45,7 @@ materials: {
   # water content of the sample.
   fouling: [0, 1, 3, 2.66, 0.03, 0.18],
   PSS: [0.9, 0.1, 2, 2.66, 0.03, 0.18],
+  subgrade: [0.9, 0.1, 2, 2.66, 0.03, 0.18],
   subsoil: [1, 0, 2, 2.66, 0.03, 0.18],
 }
 

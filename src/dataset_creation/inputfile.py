@@ -509,8 +509,11 @@ for t in snapshot_times:
         self.write_source_receiver(config.source_waveform, config.source_central_frequency, 
                                    config.source_position, config.receiver_position, config.step_size)
         # sample track type:
-        AC_rail = self.random_generator.choice([False, True])
-        info["AC rail"] = AC_rail
+        track_type = self.random_generator.choice(
+            list(config.track_configuration_probabilities.keys()),
+            p=list(config.track_configuration_probabilities.values()))
+        print("type:", track_type)
+        info["track type"] = track_type
 
         # sample layer sizes
         sampled_layer_sizes = {}
@@ -539,7 +542,7 @@ for t in snapshot_times:
         ballast_top_y = sleepers_bottom_y + 0.7 * config.sleepers_size[1]
 
         # calculate layer positions
-        layer_positions = self._build_layer_positions(ballast_top_y, sampled_layer_sizes, config.layer_roughness, AC_rail)
+        layer_positions = self._build_layer_positions(ballast_top_y, sampled_layer_sizes, config.layer_roughness, track_type=="AC_rail")
 
         # sample sleepers material
         if "all" in config.sleepers_material:
@@ -547,9 +550,12 @@ for t in snapshot_times:
         sleepers_material_name = self.random_generator.choice(config.sleepers_material)
         info["sleepers material"] = sleepers_material_name
 
+        # replace PSS with subgrade if the track type requires it
+        pss_material = config.materials["PSS"] if track_type=="PSS" else config.materials["subgrade"]
+
         # replace water contents of fouling, pss and subsoil with sampled ones
         fouling_water_range = config.materials["fouling"][4], config.materials["fouling"][5]
-        pss_water_range = config.materials["PSS"][4], config.materials["PSS"][5]
+        pss_water_range = pss_material[4], pss_material[5]
         subsoil_water_range = config.materials["subsoil"][4], config.materials["subsoil"][5]
         ranges = [fouling_water_range, pss_water_range, subsoil_water_range]
         sampled_ranges = []
@@ -559,12 +565,13 @@ for t in snapshot_times:
             sampled_ranges.append(sampled_range)
 
         fouling_material = config.materials["fouling"][:4] + sampled_ranges[0]
-        pss_material = config.materials["PSS"][:4] + sampled_ranges[1]
+        pss_material = pss_material[:4] + sampled_ranges[1]
         subsoil_material = config.materials["subsoil"][:4] + sampled_ranges[2]
         if is_fouled:
             info["fouling water"] = fouling_material[4], fouling_material[5]
         info["pss water"] = pss_material[4], pss_material[5]
         info["subsoil water"] = subsoil_material[4], subsoil_material[5]
+
 
         ################
         # WRITE LAYERS #
@@ -581,7 +588,7 @@ for t in snapshot_times:
                                             add_bot_water=water_infiltrations[0])
         
         # ASPHALT
-        if AC_rail:
+        if track_type=="AC_rail":
             bottom_roughness = config.layer_roughness["asphalt_pss"] if water_infiltrations[1] else None
             self.write_fractal_box_material("Asphalt", config.materials["asphalt"], layer_positions["asphalt"],
                                             config.fractal_dimension, 1,

@@ -10,6 +10,7 @@ import argparse
 from pathlib import Path
 from tqdm import tqdm
 from yaml import safe_load
+import shutil
 import pickle
 import numpy as np
 import collections
@@ -65,6 +66,12 @@ def _resolve_directories(config: GprMaxConfig):
     config.input_dir = config.input_dir.resolve()
     config.tmp_dir = config.tmp_dir.resolve()
     config.output_dir = config.output_dir.resolve()
+
+    # delete the tmp dir to avoid errors in snapshot handling
+    tmp_not_empty = config.tmp_dir.exists() and len(list(config.tmp_dir.iterdir())) > 0
+    if tmp_not_empty:
+        shutil.rmtree(config.tmp_dir)
+
     config.input_dir.mkdir(exist_ok=True, parents=True)
     config.tmp_dir.mkdir(exist_ok=True, parents=True)
     config.output_dir.mkdir(exist_ok=True, parents=True)
@@ -91,18 +98,22 @@ def _write_metadata_files(metadata: dict[str], metadata_dir: Path):
         pickle.dump(metadata, f)
     
     # calculate meaningful statistics for the dataset:
-    AC_rail = []        # percentage
+    track_type = {
+        "PSS": 0,
+        "AC_rail": 0,
+        "subgrade": 0
+    } # counts
     is_fouled = []      # percentage
     fouling_level = []  # distribution
     layer_sizes = {"fouling" : [], "ballast" : [], "asphalt" : [], "PSS" : []}    # distribution
     general_water_content = []  # distribution
-    water_infiltrations = []    # pergentage for each layer
+    water_infiltrations = []    # percentage for each layer
     sleepers_material_counts = {"wood" : 0, "steel" : 0, "concrete": 0}      # percentage for each material
     water_contents = {"fouling": [], "PSS": [], "subsoil": []} # distribution for min and max for each layer
     sleeper_counts = [] # distribution 2 or 3 sleepers
 
     for file, info in metadata.items():
-        AC_rail.append(info["AC rail"])
+        track_type[info["track type"]] += 1
         is_fouled.append(info["is fouled"])
         fouling_level.append(info["fouling level"])
         for name, size in info["layer sizes"].items():
@@ -117,7 +128,6 @@ def _write_metadata_files(metadata: dict[str], metadata_dir: Path):
         water_contents["subsoil"].append(info["subsoil water"])
         sleeper_counts.append(len(info["sleeper positions"]))
     
-    AC_rail_percentage = np.array(AC_rail).mean()
     is_fouled_percentage = np.array(is_fouled).mean()
     fouling_level = np.array(fouling_level)
     layer_sizes_distrib = {}
@@ -135,7 +145,7 @@ def _write_metadata_files(metadata: dict[str], metadata_dir: Path):
 
     # write statistics
     with open(metadata_dir / "statistics.txt", "w") as f:
-        f.write(f"AC rail percentage: {AC_rail_percentage}\n")
+        f.write(f"track types: {track_type}\n")
         f.write(f"fouled percentage: {is_fouled_percentage}\n")
         f.write(f"water infiltrations percentages: {water_infiltrations_percentages}\n")
         f.write(f"sleeper number distribution: {sleepers_counts_distrib}\n")
