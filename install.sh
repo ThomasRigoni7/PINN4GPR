@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # clone the gprMax repository
-git clone git@github.com:gprMax/gprMax.git gprmax_repo
+git clone git@github.com:ThomasRigoni7/gprMax.git gprmax_repo
 
 # create and activate the virtualenv
 virtualenv .venv
