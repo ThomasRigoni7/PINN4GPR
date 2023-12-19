@@ -3,10 +3,12 @@ Class responsible of writing the input file fed into gprMax
 """
 from pathlib import Path
 from typing import Iterable
+import textwrap
 import numpy as np
 
 from .configuration import GprMaxConfig
 from .ballast_simulation import BallastSimulation
+from .statistics import Metadata
 
 class InputFile():
     """
@@ -171,6 +173,7 @@ class InputFile():
     def write_ballast(self, 
                       ballast_material: tuple[float, float, float, float], 
                       position: tuple[float],
+                      simulation_seed: np.random.Generator | int = None,
                       fouling_level: float = 0.0
                       ):
         """
@@ -178,13 +181,14 @@ class InputFile():
         
         The ballast position is generated on the fly, using a pymunk simulation. See :class:`.BallastSimulation`.
         
-
         Parameters
         ----------
         ballast_material : list | tuple 
             material composing the ballast.
         position : tuple[float]
             initial and final height in meters of the ballast layer from the bottom of the model.
+        simulation_seed : np.Generator | int, default: None
+            the custom seed to use for the ballast simulation.
         fouling_level : float, default: 0
             fouling level in the interval [0, 1] that determines the size of the ballast. 
             A higher `fouling_level` corresponds to smaller ballast stones, on average. 
@@ -203,8 +207,7 @@ class InputFile():
 
         ballast_height = position[1] - position[0]
         simulation = BallastSimulation((self.domain[0], ballast_height), buffer_y=0.4, radii_distribution=radii_distrib)
-        seed = self.random_generator.integers(0, 2**32)
-        ballast_stones = simulation.run(random_seed=seed)
+        ballast_stones = simulation.run(random_seed=simulation_seed)
         for stone in ballast_stones:
             x, y, r = stone
             self.write_command("cylinder", (x, y + position[0], 0, x, y + position[0], self.domain[2], r, "ballast", "n"))
@@ -414,10 +417,11 @@ class InputFile():
         """
 
         script = f"""
-snapshot_times = {str(time_steps)}
-for t in snapshot_times:
-    print(f"#snapshot: {0} {0} {0} {self.domain[0]} {self.domain[1]} {self.domain[2]} {self.spatial_resolution[0]} {self.spatial_resolution[1]} {self.spatial_resolution[2]} {{t}} {{'{str(output_basefilename)}_snaps' + str(current_model_run) + '/snap_' + str(t)}}")
+        snapshot_times = {str(time_steps)}
+        for t in snapshot_times:
+            print(f"#snapshot: {0} {0} {0} {self.domain[0]} {self.domain[1]} {self.domain[2]} {self.spatial_resolution[0]} {self.spatial_resolution[1]} {self.spatial_resolution[2]} {{t}} {{'{str(output_basefilename)}_snaps' + str(current_model_run) + '/snap_' + str(t)}}")
         """
+        script = textwrap.dedent(script)
 
         self.write_line("##Snapshots")
         self.write_command("python", [])
@@ -466,6 +470,89 @@ for t in snapshot_times:
 
         return layer_positions
 
+    def sample_randomized_metadata(self, config: GprMaxConfig, seed: int | None = None):
+        """
+        Samples all the random variables necessary for the randomization of the input file.
+
+        Parameters
+        ----------
+        config : GprMaxConfig
+            configuration.
+        seed : int | None, optional
+            seed to use in the random number generators. The input file contents are deterministic as long as the same seed is used.
+        
+        Returns
+        -------
+        Metadata
+            The sampled metadata information
+        """
+        metadata = {}
+
+        self.random_generator = np.random.default_rng(seed)
+        seed = self.random_generator.bit_generator.seed_seq.entropy
+        metadata["seed"] = seed
+        # sample track type:
+        track_type = self.random_generator.choice(
+            list(config.track_configuration_probabilities.keys()),
+            p=list(config.track_configuration_probabilities.values()))
+        metadata["track_type"] = str(track_type)
+
+        # sample layer sizes
+        sampled_layer_sizes = {}
+        for layer_name, layer_range in config.layer_sizes.items():
+            size = self.random_generator.beta(2, 2) * (layer_range[1] - layer_range[0]) + layer_range[0]
+            sampled_layer_sizes[layer_name] = size
+        
+        # sample fouling level
+        fouling_level = self.random_generator.beta(1.2, 2.5)
+        is_fouled = fouling_level > config.fouling_box_threshold
+        if is_fouled:
+            size = fouling_level * sampled_layer_sizes["ballast"]
+            sampled_layer_sizes["fouling"] = size
+        metadata["fouling_level"] = fouling_level
+        metadata["is_fouled"] = is_fouled
+        metadata["layer_sizes"] = sampled_layer_sizes
+
+        # sample water content between 0 and 1
+        general_water_content = self.random_generator.beta(1.2, 2.5)
+        metadata["general_water_content"] = general_water_content
+        # water infiltrations in fouling-asphalt, asphalt-PSS, PSS-subsoil
+        water_infiltrations = self.random_generator.normal(general_water_content, 0.2, 3) > config.water_infiltration_threshold
+        metadata["water_infiltrations"] = water_infiltrations
+        
+        # sample sleepers material
+        sleepers_material_name = self.random_generator.choice(list(config.sleepers_material_probabilities.keys()),
+                                                              p=list(config.sleepers_material_probabilities.values()))
+        metadata["sleepers_material"] = str(sleepers_material_name)
+        
+        # sample deterioration of substructure
+        general_deterioration = self.random_generator.beta(1.2, 2.5)
+        metadata["general_deterioration"] = general_deterioration
+
+        
+        layer_water_ranges = []
+        for _ in range(3):
+            v1 = self.random_generator.normal(general_water_content, 0.1)
+            v2 = self.random_generator.normal(general_water_content, 0.1)
+            low, high = sorted([float(v1), float(v2)])
+            sampled_range = max(low, 0), min(high, 1)
+            layer_water_ranges.append(sampled_range)
+        metadata["layer_water_ranges"] = layer_water_ranges
+        # SLEEPERS
+        sleepers_size = config.sleepers_sizes[sleepers_material_name]
+        sleepers_bottom_y = config.source_position[1] - config.antenna_sleeper_distance - sleepers_size[1]
+        first_sleeper_position = round(self.random_generator.random() * config.sleepers_separation - sleepers_size[0] + config.spatial_resolution[0], 2)
+        all_sleepers_positions = []
+        pos = first_sleeper_position
+        while pos < config.domain[0]:
+            all_sleepers_positions.append((pos, sleepers_bottom_y, 0))
+            pos += config.sleepers_separation
+        metadata["sleeper_positions"] = all_sleepers_positions
+
+        metadata["ballast_simulation_seed"] = self.random_generator.integers(2**31)
+        return Metadata(**metadata)
+
+
     def write_randomized(self, config: GprMaxConfig, seed: int | None = None):
         """
         Writes an entire randomized gprMax input file on disk, based on the specified configuration.
@@ -491,77 +578,49 @@ for t in snapshot_times:
 
         Returns
         -------
-        dict[str]
-            dicionary containing information about the sampled values.
+        Metadata
+            object containing information about the sampled values.
         """
 
-        info = {}
+        metadata = self.sample_randomized_metadata(config, seed)
 
-        self.random_generator = np.random.default_rng(seed)
-        seed = self.random_generator.bit_generator.seed_seq.entropy
-        info["seed"] = seed
-        self.write_line("## Generated with seed: " + str(seed))
-        self.write_line()
+        return self.write_full_track(config, metadata)
 
-        # general commands
-        self.write_general_commands(self.title, config.domain, config.spatial_resolution, config.time_window, config.tmp_dir)
-        # source and receiver
-        self.write_source_receiver(config.source_waveform, config.source_central_frequency, 
-                                   config.source_position, config.receiver_position, config.step_size)
-        # sample track type:
-        track_type = self.random_generator.choice(
-            list(config.track_configuration_probabilities.keys()),
-            p=list(config.track_configuration_probabilities.values()))
-        info["track type"] = track_type
 
-        # sample layer sizes
-        sampled_layer_sizes = {}
-        for layer_name, layer_range in config.layer_sizes.items():
-            size = self.random_generator.beta(2, 2) * (layer_range[1] - layer_range[0]) + layer_range[0]
-            sampled_layer_sizes[layer_name] = size
-        
-        # sample fouling level
-        fouling_level = self.random_generator.beta(1.2, 2.5)
-        is_fouled = fouling_level > config.fouling_box_threshold
-        if is_fouled:
-            size = fouling_level * sampled_layer_sizes["ballast"]
-            sampled_layer_sizes["fouling"] = size
-        info["fouling level"] = fouling_level
-        info["is fouled"] = is_fouled
-        info["layer sizes"] = sampled_layer_sizes
+    def write_full_track(self, config: GprMaxConfig, metadata: Metadata):
+        """
+        Writes the commands relative to a full railway track on file.
 
-        # sample water content between 0 and 1
-        general_water_content = self.random_generator.beta(1.2, 2.5)
-        info["general water content"] = general_water_content
-        # water infiltrations in fouling-asphalt, asphalt-PSS, PSS-subsoil
-        water_infiltrations = self.random_generator.normal(general_water_content, 0.2, 3) > config.water_infiltration_threshold
-        info["water infiltrations"] = water_infiltrations
-        
-        # sample sleepers material
-        sleepers_material_name = self.random_generator.choice(list(config.sleepers_material_probabilities.keys()),
-                                                              p=list(config.sleepers_material_probabilities.values()))
-        info["sleepers material"] = sleepers_material_name
-        sleepers_size = config.sleepers_sizes[sleepers_material_name]
-        sleepers_bottom_y = config.source_position[1] - config.antenna_sleeper_distance - sleepers_size[1]
-        ballast_top_y = sleepers_bottom_y + 0.7 * sleepers_size[1]
+        First calculates the layer positions and materials
+
+        Parameters
+        ----------
+        config : GprMaxConfig
+            configurationMetadata
+        metadata : Metadata
+            Metadata containing all the randomly sampled values.
+
+        Returns
+        -------
+        Metadata
+            the original `metadata` object, extended with the calculated fouling, pss and subsoil materials.
+        """
 
         # calculate layer positions
-        layer_positions = self._build_layer_positions(ballast_top_y, sampled_layer_sizes, config.layer_roughness, track_type=="AC_rail")
+        sleepers_size = config.sleepers_sizes[metadata.sleepers_material]
+        ballast_top_y = metadata.sleeper_positions[0][1] + 0.7 * sleepers_size[1]
+        layer_positions = self._build_layer_positions(ballast_top_y, metadata.layer_sizes, config.layer_roughness, metadata.track_type=="AC_rail")
 
-
-        # sample deterioration of substructure
-        general_deterioration = self.random_generator.beta(1.2, 2.5)
         # replace PSS with subgrade if the track type requires it
-        pss_material_healty = config.materials["PSS_healty"] if track_type=="PSS" else config.materials["subgrade_healty"]
-        pss_material_deteriorated = config.materials["PSS_deteriorated"] if track_type=="PSS" else config.materials["subgrade_deteriorated"]
+        pss_material_healty = config.materials["PSS_healty"] if metadata.track_type=="PSS" else config.materials["subgrade_healty"]
+        pss_material_deteriorated = config.materials["PSS_deteriorated"] if metadata.track_type=="PSS" else config.materials["subgrade_deteriorated"]
         subsoil_material_healty = config.materials["subsoil_good"]
         subsoil_material_problematic = config.materials["subsoil_problematic"]
         # linear interpolation of the healty and deteriorated values for peplinski soils
-        pss_material = np.array(pss_material_deteriorated) * general_deterioration + np.array(pss_material_healty) * (1-general_deterioration)
-        subsoil_material = np.array(subsoil_material_problematic) * general_deterioration + np.array(subsoil_material_healty) * (1-general_deterioration)
+        pss_material = np.array(pss_material_deteriorated) * metadata.general_deterioration + np.array(pss_material_healty) * (1-metadata.general_deterioration)
+        subsoil_material = np.array(subsoil_material_problematic) * metadata.general_deterioration + np.array(subsoil_material_healty) * (1-metadata.general_deterioration)
         pss_material = tuple(pss_material)
         subsoil_material = tuple(subsoil_material)
-
 
         # replace water contents of fouling, pss and subsoil with sampled ones
         fouling_water_range = config.materials["fouling"][4], config.materials["fouling"][5]
@@ -569,52 +628,66 @@ for t in snapshot_times:
         subsoil_water_range = subsoil_material[4], subsoil_material[5]
         ranges = [fouling_water_range, pss_water_range, subsoil_water_range]
         sampled_ranges = []
-        for vmin, vmax in ranges:
-            central = self.random_generator.normal(general_water_content, 0.2) * (vmax - vmin) + vmin
-            sampled_range = max(central - 0.02, vmin), min(central+0.02, vmax)
-            sampled_ranges.append(sampled_range)
+        for (low, high), (vmin, vmax) in zip(metadata.layer_water_ranges, ranges):
+            l = low * (vmax - vmin) + vmin
+            h = high * (vmax - vmin) + vmin
+            sampled_ranges.append((l, h))
 
         fouling_material = config.materials["fouling"][:4] + sampled_ranges[0]
         pss_material = pss_material[:4] + sampled_ranges[1]
         subsoil_material = subsoil_material[:4] + sampled_ranges[2]
-        if is_fouled:
-            info["fouling water"] = fouling_material[4], fouling_material[5]
-        info["pss water"] = pss_material[4], pss_material[5]
-        info["subsoil water"] = subsoil_material[4], subsoil_material[5]
+        
+        if metadata.is_fouled:
+            metadata.fouling_material = fouling_material
+        metadata.pss_material = pss_material
+        metadata.subsoil_material = subsoil_material
 
+        ##############
+        # WRITE FILE #
+        ##############
 
+        if metadata.seed is not None:
+            self.write_line("## Generated with seed: " + str(metadata.seed))
+            self.write_line()
+
+        # general commands
+        self.write_general_commands(self.title, config.domain, config.spatial_resolution, config.time_window, config.tmp_dir)
+        # source and receiver
+        self.write_source_receiver(config.source_waveform, config.source_central_frequency, 
+                                   config.source_position, config.receiver_position, config.step_size)
+        
         ################
         # WRITE LAYERS #
         ################
 
         # FOULING
-        if is_fouled:
-            bottom_roughness = config.layer_roughness["fouling_asphalt"] if water_infiltrations[0] else None
+        if metadata.is_fouled:
+            bottom_roughness = config.layer_roughness["fouling_asphalt"] if metadata.water_infiltrations[0] else None
             self.write_fractal_box_material("Fouling", fouling_material, layer_positions["fouling"],
                                             config.fractal_dimension, config.pep_soil_number,
                                             top_surface_roughness=config.layer_roughness["top_fouling"],
                                             bottom_surface_roughness=bottom_roughness,
                                             add_top_water=False,
-                                            add_bot_water=water_infiltrations[0])
+                                            add_bot_water=metadata.water_infiltrations[0])
         
         # ASPHALT
-        if track_type=="AC_rail":
-            bottom_roughness = config.layer_roughness["asphalt_pss"] if water_infiltrations[1] else None
+        if metadata.track_type=="AC_rail":
+            bottom_roughness = config.layer_roughness["asphalt_pss"] if metadata.water_infiltrations[1] else None
             self.write_fractal_box_material("Asphalt", config.materials["asphalt"], layer_positions["asphalt"],
                                             config.fractal_dimension, 1,
                                             top_surface_roughness=config.layer_roughness["fouling_asphalt"],
                                             bottom_surface_roughness=bottom_roughness,
                                             add_top_water=False,
-                                            add_bot_water=water_infiltrations[1])
+                                            add_bot_water=metadata.water_infiltrations[1])
 
         # PSS
-        bottom_roughness = config.layer_roughness["pss_subsoil"] if water_infiltrations[2] else None
+        bottom_roughness = config.layer_roughness["pss_subsoil"] if metadata.water_infiltrations[2] else None
         self.write_fractal_box_material("PSS", pss_material, layer_positions["PSS"],
                                         config.fractal_dimension, config.pep_soil_number,
                                         top_surface_roughness=config.layer_roughness["asphalt_pss"],
                                         bottom_surface_roughness=bottom_roughness,
                                         add_top_water=False,
-                                        add_bot_water=water_infiltrations[2])
+                                        add_bot_water=metadata.water_infiltrations[2])
         
         # SUBSOIL
         self.write_fractal_box_material("Subsoil", subsoil_material, layer_positions["subsoil"], 
@@ -622,25 +695,17 @@ for t in snapshot_times:
                                         top_surface_roughness=config.layer_roughness["pss_subsoil"])
         
         # BALLAST
-        self.write_ballast(config.materials["ballast"], layer_positions["ballast"], fouling_level)
+        self.write_ballast(config.materials["ballast"], layer_positions["ballast"], metadata.ballast_simulation_seed, metadata.fouling_level)
 
-        # SLEEPERS
-        first_sleeper_position = round(self.random_generator.random() * config.sleepers_separation - sleepers_size[0] + config.spatial_resolution[0], 2)
-        all_sleepers_positions = []
-        pos = first_sleeper_position
-        while pos < config.domain[0]:
-            all_sleepers_positions.append((pos, sleepers_bottom_y, 0))
-            pos += config.sleepers_separation
-        self.write_sleepers(config.materials[sleepers_material_name], all_sleepers_positions, sleepers_size, sleepers_material_name)
-        info["sleeper positions"] = [x for (x, y, z) in all_sleepers_positions]
+        self.write_sleepers(config.materials[metadata.sleepers_material], metadata.sleeper_positions, config.sleepers_sizes[metadata.sleepers_material], metadata.sleepers_material)
 
-        # snapshots
+        # SNAPSHOTS
         if config.snapshot_times:
             self.write_snapshots(config.tmp_dir / self.title, config.snapshot_times)
         else:
             self.write_line("## No snapshots\n")
 
-        # save geometry
+        # SAVE GEOMETRY
         self.write_save_geometry(config.tmp_dir, config.output_dir)
 
-        return info
+        return metadata

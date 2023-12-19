@@ -111,7 +111,7 @@ class BallastSimulation:
             [0.02, 0.1, 0.5]]
 
             means three sieves of diameter 0.06, 0.04, 0.02, where each entry is [sieve_diameter, mass_lower_bound, mass_upper_bound]
-        random_generator: np.random.Generator
+        random_generator : np.random.Generator
             random generator to use for the sampling
         
         Returns

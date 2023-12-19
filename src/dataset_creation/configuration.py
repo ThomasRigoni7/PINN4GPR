@@ -13,6 +13,7 @@ class GprMaxConfig(BaseModel):  # numpydoc ignore=PR01
     n_ascans: int
     generate_input: bool
     geometry_only: bool
+    run_simulations: bool
 
     # folders
     input_dir: Path
@@ -39,7 +40,7 @@ class GprMaxConfig(BaseModel):  # numpydoc ignore=PR01
     pep_soil_number: int
 
     # Materials and layers
-    materials: dict[str, tuple[float, ...]]
+    materials: dict[str, tuple[float, float, float, float] | tuple[float, float, float, float, float, float]]
     antenna_sleeper_distance: float
     layer_sizes: dict[str, tuple[float, float]]
     layer_roughness: dict[str, float]
