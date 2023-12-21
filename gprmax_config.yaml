@@ -78,9 +78,9 @@ layer_roughness: {
 # sleepers
 sleepers_separation: 0.65
 sleepers_material_probabilities: {
-  "wood": 0.45,
-  "concrete": 0.45,
-  "steel": 0.1
+  "wood": 0.25,
+  "concrete": 0.50,
+  "steel": 0.25
 }
 sleepers_sizes: {
   "wood": [0.26, 0.15, 0.002],

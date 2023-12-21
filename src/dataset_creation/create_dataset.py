@@ -117,8 +117,32 @@ def _nostdout():
     yield
     sys.stdout = save_stdout
 ###############################################
+    
+def check_gpu() -> bool:
+    """
+    Checks if it is possible to use a GPU in the simulations process.
 
-def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str | Path, n_ascans:int, geometry_only: bool):
+    Returns
+    -------
+    bool
+        True if it is possible to use a GPU, False otherwise.
+    """
+    # check if pycuda is installed, otherwise only use cpu
+    gpu = False
+    try:
+        # Check and list any CUDA-Enabled GPUs
+        import pycuda.driver as drv
+        drv.init()
+        if drv.Device.count() == 0:
+            raise Exception("No nvidia GPU detected")
+        gpu = True
+        print("NVIDIA GPU detected!")
+    except Exception:
+        print("No NVIDIA GPU detected, pycuda package or the CUDA toolkit not installed. Falling back to CPU mode.")
+
+    return gpu
+
+def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str | Path, n_ascans:int, geometry_only: bool, gpus: list[int]):
     """
     Runs the gprMax simulations specified inside the 'input_dir' folder and places its outputs in the 'output_dir' folder.
     Automatically combines the multiple A-scans created for each sample into a single B-scan file.
@@ -145,19 +169,9 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
     input_dir = Path(input_dir)
     tmp_dir = Path(tmp_dir)
     output_dir = Path(output_dir)
-    # check if pycuda is installed, otherwise only use cpu
-    gpus = None
-    try:
-        # Check and list any CUDA-Enabled GPUs
-        import pycuda.driver as drv
-        drv.init()
-        if drv.Device.count() == 0:
-            raise Exception("No nvidia GPU detected")
-        gpus = [0]
-        print("NVIDIA GPU detected!")
-    except Exception:
-        print("No NVIDIA GPU detected, pycuda package or the CUDA toolkit not installed. Falling back to CPU mode.")
 
+    gpus = [0] if gpus else None
+    
     for f in input_dir.glob("*.in"):
         output_files_basename = f.stem
         sim_output_dir = output_dir / output_files_basename
@@ -200,7 +214,7 @@ if __name__ == "__main__":
     config = vars(args)
 
     # read the yaml configuration file with the materials:
-    with open(args.gprmax_config, "r") as f:
+    with open(args.config_file, "r") as f:
         default_config = safe_load(f)
 
     default_config.update({k:v for k, v in config.items() if v is not None})
@@ -208,8 +222,12 @@ if __name__ == "__main__":
 
     _resolve_directories(config)
 
+    gpus = check_gpu()
+    
     if config.generate_input:
         create_gprmax_input_files(config)
 
-    if config.run:
-        run_simulations(config.input_dir, config.tmp_dir, config.output_dir, config.n_ascans, geometry_only=config.geometry_only)
+    if config.run_simulations:
+        run_simulations(config.input_dir, config.tmp_dir, config.output_dir, config.n_ascans, 
+                        geometry_only=config.geometry_only, 
+                        gpus=gpus)
