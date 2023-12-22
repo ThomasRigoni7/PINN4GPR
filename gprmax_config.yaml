@@ -20,7 +20,7 @@ track_configuration_probabilities: {
   subgrade: 0.5
 }
 
-domain: [1.5, 1.70, 0.002]
+domain_size: [1.5, 1.70, 0.002]
 spatial_resolution: [0.002, 0.002, 0.002]
 time_window: 2.5e-08
 
@@ -41,7 +41,7 @@ materials: {
   wood: [2, 0.01, 1, 0],
   steel: [1, 1.4e6, 1000, 0],
   asphalt: [8, 0.01, 1, 0],
-  # peplinsky soils: the values are in order:
+  # Peplinski soils: the values are in order:
   #  - sand fraction
   #  - clay fraction
   #  - bulk density

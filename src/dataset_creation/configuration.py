@@ -1,12 +1,9 @@
-"""
-Utility class to hold the configurations
-"""
 from pydantic import BaseModel
 from pathlib import Path
 
 class GprMaxConfig(BaseModel):  # numpydoc ignore=PR01
     """
-    Utility class to hold the configuration gprMax configuration to generate a dataset.
+    Utility class to hold the gprMax configuration to generate a dataset.
     """
     # general config
     n_samples: int
@@ -21,7 +18,7 @@ class GprMaxConfig(BaseModel):  # numpydoc ignore=PR01
     output_dir: Path
 
     # simulation configuration
-    domain: tuple[float, float, float]
+    domain_size: tuple[float, float, float]
     spatial_resolution: tuple[float, float, float]
     time_window: float
 

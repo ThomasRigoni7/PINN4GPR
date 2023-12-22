@@ -9,4 +9,5 @@ dataset\_creation package
    ballast_simulation
    convert_to_np
    configuration
+   statistics
 

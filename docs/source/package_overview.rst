@@ -11,6 +11,7 @@ The PINN4GPR repository is structured in the following way:
         src/
             dataset_creation/
             pinns/
+            tests/
             visualization/
         .readthedocs.yaml
         gprmax_config.yaml

@@ -26,8 +26,8 @@ def _parse_arguments():
     parser = argparse.ArgumentParser()
 
     # general settings
-    parser.add_argument("--n_samples", type=int, help="Number of input files to generate/simulations to run.")
-    parser.add_argument("--n_ascans", type=int,
+    parser.add_argument("-ns", "--n_samples", type=int, help="Number of input files to generate/simulations to run.")
+    parser.add_argument("-na", "--n_ascans", type=int,
                         help="Number of A-scans that constitute a B-scan")
     parser.add_argument("-i", "--generate_input", action="store_true", 
                         help="If set, generate input files and store them inside `input_dir`.")
@@ -40,8 +40,8 @@ def _parse_arguments():
     parser.add_argument("--tmp_dir", type=str,
                         help="Directory to store the gprMax intermediate files.")
     parser.add_argument("--output_dir", type=str,
-                        help="Directory to store the results.")
-    parser.add_argument("--config_file", type=str, default="gprmax_config.yaml",
+                        help="Directory to store the final results.")
+    parser.add_argument("-f", "--config_file", type=str, default="gprmax_config.yaml",
                         help="Path to the gprmax yaml config file.")
     
     args = parser.parse_args()
@@ -49,6 +49,10 @@ def _parse_arguments():
     # setting geometry only automatically runs the simulations
     if args.geometry_only:
         args.run_simulations = True
+    
+    if not (args.generate_input or args.run_simulations):
+        parser.print_help()
+        exit(1)
 
     return args
     
@@ -142,11 +146,12 @@ def check_gpu() -> bool:
 
     return gpu
 
-def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str | Path, n_ascans:int, geometry_only: bool, gpus: list[int]):
+def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str | Path, n_ascans:int, geometry_only: bool, gpu: bool):
     """
-    Runs the gprMax simulations specified inside the 'input_dir' folder and places its outputs in the 'output_dir' folder.
+    Runs the gprMax simulations specified inside the `input_dir` folder and places its outputs in the `output_dir` folder.
+    
     Automatically combines the multiple A-scans created for each sample into a single B-scan file.
-
+    Autotatically combines the snapshots created from the scripts into an .npz file.
     Additionally creates gprMax geometry files corresponding to each input file and converts them into numpy format.
 
     If the 'geometry_only' parameter is set, only creates geometry files, without running the simulations.
@@ -162,7 +167,9 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
     n_ascans : int
         number of A-scans for each generated B-scan
     geometry_only : bool
-        if True, gprMax will not rebuild the geometry for every A-scan, but only at the beginning of the B-scan.
+        if set, gprMax will not run the simulations, but only build the file geometries.
+    gpu : bool
+        if set, try to run gprMax in gpu mode.
     """
     from gprMax import run as gprmax_run
     from tools.outputfiles_merge import merge_files
@@ -170,7 +177,7 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
     tmp_dir = Path(tmp_dir)
     output_dir = Path(output_dir)
 
-    gpus = [0] if gpus else None
+    gpu = [0] if gpu else None
     
     for f in input_dir.glob("*.in"):
         output_files_basename = f.stem
@@ -183,7 +190,7 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
             snapshot_dir.mkdir(parents=True, exist_ok=True)
 
         # run sims
-        gprmax_run(str(f), n_ascans, geometry_fixed=False, geometry_only=geometry_only, gpu=gpus)
+        gprmax_run(str(f), n_ascans, geometry_fixed=False, geometry_only=geometry_only, gpu=gpu)
 
         # merge output A-scans
         if not geometry_only:
@@ -222,12 +229,12 @@ if __name__ == "__main__":
 
     _resolve_directories(config)
 
-    gpus = check_gpu()
     
     if config.generate_input:
         create_gprmax_input_files(config)
 
     if config.run_simulations:
+        gpu_available = check_gpu()
         run_simulations(config.input_dir, config.tmp_dir, config.output_dir, config.n_ascans, 
                         geometry_only=config.geometry_only, 
-                        gpus=gpus)
+                        gpu=gpu_available)

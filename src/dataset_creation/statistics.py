@@ -42,6 +42,14 @@ class Metadata(BaseModel):  # numpydoc ignore=PR01
 
 
 class DatasetStats():
+    """
+    Class used to store and save metadata from multiple runs to file.
+
+    Parameters
+    ----------
+    stats : dict[str, Metadata]
+        dictionary containing statistics relative to input files.
+    """
     def __init__(self, stats: dict[str, Metadata]) -> None:
         self.stats = stats
 

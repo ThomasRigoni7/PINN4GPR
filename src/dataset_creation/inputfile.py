@@ -472,8 +472,21 @@ class InputFile():
 
     def sample_randomized_metadata(self, config: GprMaxConfig, seed: int | None = None):
         """
-        Samples all the random variables necessary for the randomization of the input file.
+        Samples all the random variables necessary for the randomization of the input file..
 
+        Samples a variety of factors depending on the configuration provided:
+         - the kind of track between a regular PSS, AC rail and gravel-sand subgrade.
+         - the layer sizes with a beta(2, 2) distribution between the given bounds.
+         - fouling level with a beta(1.2, 2.5), if > `fouling_box_threshold` the track is considered fouled.
+         - general water content between 0 and 1 with a beta(1.2, 2.5).
+         - water infiltrations between the layers with a normal distribution centered on the
+            general water content. They are added if the value > `water_infiltration_threshold`.
+         - general deterioration of the sub-ballast layers, with a beta(1.2, 2.5).
+         - sub-ballast layer water ranges with a normal distribution centered on the 
+            general water content.
+         - sleepers materials and position.
+         - ballast simulation seed.
+        
         Parameters
         ----------
         config : GprMaxConfig
@@ -529,7 +542,6 @@ class InputFile():
         general_deterioration = self.random_generator.beta(1.2, 2.5)
         metadata["general_deterioration"] = general_deterioration
 
-        
         layer_water_ranges = []
         for _ in range(3):
             v1 = self.random_generator.normal(general_water_content, 0.1)
@@ -544,7 +556,7 @@ class InputFile():
         first_sleeper_position = round(self.random_generator.random() * config.sleepers_separation - sleepers_size[0] + config.spatial_resolution[0], 2)
         all_sleepers_positions = []
         pos = first_sleeper_position
-        while pos < config.domain[0]:
+        while pos < config.domain_size[0]:
             all_sleepers_positions.append((pos, sleepers_bottom_y, 0))
             pos += config.sleepers_separation
         metadata["sleeper_positions"] = all_sleepers_positions
@@ -557,17 +569,8 @@ class InputFile():
         """
         Writes an entire randomized gprMax input file on disk, based on the specified configuration.
 
-        Samples a variety of factors:
-         - the kind of track between a regular PSS and an AC rail (presence of asphalt), 
-         - the layer sizes with a beta(2, 2) distribution between the given bounds.
-         - fouling presence (based on the given probability) and amount with a beta(1.2, 2.5)
-         - general water content between 0 and 1 with a beta(1.2, 2.5)
-         - water infiltrations between the layers derived from the general water content
-            with a normal(`general_water_content`, 0.3) > 0.5 for each 
-         - sleepers materials and position
-         - ballast sieve curve and position
-
-        Returns information about the sampled variables.
+        Equivalent to calling :meth:`sample_randomized_metadata`, 
+        then :meth:`write_full_track` with its results.
 
         Parameters
         ----------
@@ -590,8 +593,6 @@ class InputFile():
     def write_full_track(self, config: GprMaxConfig, metadata: Metadata):
         """
         Writes the commands relative to a full railway track on file.
-
-        First calculates the layer positions and materials
 
         Parameters
         ----------
@@ -651,7 +652,7 @@ class InputFile():
             self.write_line()
 
         # general commands
-        self.write_general_commands(self.title, config.domain, config.spatial_resolution, config.time_window, config.tmp_dir)
+        self.write_general_commands(self.title, config.domain_size, config.spatial_resolution, config.time_window, config.tmp_dir)
         # source and receiver
         self.write_source_receiver(config.source_waveform, config.source_central_frequency, 
                                    config.source_position, config.receiver_position, config.step_size)
