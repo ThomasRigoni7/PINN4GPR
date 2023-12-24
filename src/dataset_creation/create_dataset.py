@@ -11,6 +11,7 @@ from pathlib import Path
 from tqdm import tqdm
 from yaml import safe_load
 import shutil
+import numpy as np
 
 from .convert_to_np import convert_geometry_to_np, convert_snapshots_to_np
 from .inputfile import InputFile
@@ -43,6 +44,8 @@ def _parse_arguments():
                         help="Directory to store the final results.")
     parser.add_argument("-f", "--config_file", type=str, default="gprmax_config.yaml",
                         help="Path to the gprmax yaml config file.")
+    parser.add_argument("-s", "--seed", type=int,
+                        help="The seed used for dataset random generation. The entire generated dataset is deterministic based on this seed.")
     
     args = parser.parse_args()
 
@@ -91,6 +94,7 @@ def create_gprmax_input_files(config: GprMaxConfig):
     """
 
     stats = {}
+    rng = np.random.default_rng(config.seed)
     
     for file_number in tqdm(range(config.n_samples)):
         filename = f"scan_{str(file_number).zfill(4)}"
@@ -99,7 +103,7 @@ def create_gprmax_input_files(config: GprMaxConfig):
         with InputFile(file_path.with_suffix(".in"), filename) as f:
             output_dir = config.output_dir / filename
             new_config = config.model_copy(update={"output_dir": output_dir}, deep=True)
-            stats[filename] = f.write_randomized(new_config)
+            stats[filename] = f.write_randomized(new_config, rng.integers(2**31))
     
     stats = DatasetStats(stats)
 
