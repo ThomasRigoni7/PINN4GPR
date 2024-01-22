@@ -12,6 +12,7 @@ from tqdm import tqdm
 from yaml import safe_load
 import shutil
 import numpy as np
+import time
 
 from .convert_to_np import convert_geometry_to_np, convert_snapshots_to_np
 from .inputfile import InputFile
@@ -97,7 +98,7 @@ def create_gprmax_input_files(config: GprMaxConfig):
     rng = np.random.default_rng(config.seed)
     
     for file_number in tqdm(range(config.n_samples)):
-        filename = f"scan_{str(file_number).zfill(4)}"
+        filename = f"scan_{str(file_number).zfill(5)}"
         file_path = config.input_dir / filename
 
         with InputFile(file_path.with_suffix(".in"), filename) as f:
@@ -183,7 +184,7 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
 
     gpu = [0] if gpu else None
     
-    for f in input_dir.glob("*.in"):
+    for f in tqdm(list(input_dir.glob("*.in"))):
         output_files_basename = f.stem
         sim_output_dir = output_dir / output_files_basename
         sim_output_dir.mkdir(parents=True, exist_ok=True)
@@ -233,6 +234,7 @@ if __name__ == "__main__":
 
     _resolve_directories(config)
 
+    t = time.time()
     
     if config.generate_input:
         create_gprmax_input_files(config)
@@ -242,3 +244,5 @@ if __name__ == "__main__":
         run_simulations(config.input_dir, config.tmp_dir, config.output_dir, config.n_ascans, 
                         geometry_only=config.geometry_only, 
                         gpu=gpu_available)
+
+    print(f"Completed all tasks in {time.time() - t} seconds.")

@@ -306,7 +306,8 @@ class InputFile():
         self.write_command("fractal_box", (0, position[0], 0, 
                                            self.domain[0], position[1], self.domain[2], 
                                            fractal_dimension, 1, 1, 1, soil_number,
-                                           name.lower(), name.lower() + "_fractal_box"))
+                                           name.lower(), name.lower() + "_fractal_box",
+                                           self.random_generator.integers(0, 2**31)))
         if top_surface_roughness is not None:
             top_surface = (0, position[1], 0, self.domain[0], position[1], self.domain[2])
             lower_limit = position[1] - top_surface_roughness
@@ -362,9 +363,9 @@ class InputFile():
         material_name = "sleepers_material" if material_name is None else f"{material_name}_sleepers"
         self.write_command("material", list(material) + [material_name])
         for p in position:
-            p_end = self._clip_into_domain((p[0] + size[0], p[1] + size[1], p[1] + size[2]))
+            p_end = self._clip_into_domain((p[0] + size[0], p[1] + size[1], p[2] + size[2]))
             if p_end[0] < self.spatial_resolution[0]:
-                p_end = self.spatial_resolution, p_end[1], p_end[2]
+                p_end = self.spatial_resolution[0], p_end[1], p_end[2]
             p = self._clip_into_domain(p)
             self.write_command("box", (*p, *p_end, material_name))
         
