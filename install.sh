@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # clone the gprMax repository
-git clone git@github.com:ThomasRigoni7/gprMax.git gprmax_repo
+git clone https://github.com/ThomasRigoni7/gprMax.git gprmax_repo
 
 # create and activate the virtualenv
 python3 -m venv .venv

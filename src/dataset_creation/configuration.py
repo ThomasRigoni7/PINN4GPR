@@ -11,6 +11,7 @@ class GprMaxConfig(BaseModel):  # numpydoc ignore=PR01
     generate_input: bool
     geometry_only: bool
     run_simulations: bool
+    seed: int
 
     # folders
     input_dir: Path

@@ -3,6 +3,7 @@
 #######################
 n_samples: 1
 n_ascans: 1
+seed: 42
 
 generate_input: false
 run_simulations: false

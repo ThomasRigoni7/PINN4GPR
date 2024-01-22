@@ -2,6 +2,7 @@
 This module contains utility functions to convert results of the gprMax computation into numpy ndarrays.
 """
 
+import re
 import numpy as np
 from skimage.measure import block_reduce
 import h5py
@@ -25,6 +26,8 @@ def _update_debye_er(materials_list: list[str], debye_materials: list[str], freq
         mat = [m for m in materials_list if name in m]
         if len(mat) == 0:
             raise ValueError(f"Error: trying to calculate Debye epsilon r for material '{name}', but material declaration not found!")
+        if len(mat) > 1:
+            raise ValueError(f"More than 1 material with the same name:", name)
         mat = mat[0]
 
         # setup material
@@ -160,6 +163,14 @@ def extract_snapshot_fields_numpy(snapshot_path: str | Path):
 
     return e_field, h_field
 
+def _get_trailing_number(s):
+    """
+    Returns the trailing number in the input string, or None
+    """
+    m = re.search(r'\d+$', s)
+    return int(m.group()) if m else None
+
+
 def convert_snapshots_to_np(snapshot_folder : str | Path, 
                             output_file: str | Path, 
                             remove_files: bool = False, 
@@ -199,7 +210,7 @@ def convert_snapshots_to_np(snapshot_folder : str | Path,
 
     full_data = {}
     for folder in folders:
-        a_scan_number = int(folder.stem[15:]) - 1
+        a_scan_number = _get_trailing_number(folder.stem) - 1
         snapshot_files = [f for f in folder.glob("snap_*.vti")]
         snapshot_files.sort(key=extract_time_from_snapshot_path)
         times = [extract_time_from_snapshot_path(f) for f in snapshot_files]
@@ -220,16 +231,16 @@ def convert_snapshots_to_np(snapshot_folder : str | Path,
 
         a_scan_data_e_field = np.asarray(a_scan_data_e_field)
         a_scan_data_h_field = np.asarray(a_scan_data_h_field)
-        
+
         # apply pooling
         if pool_window is not None:
             if a_scan_data_e_field.size > 0:
                 a_scan_data_e_field = block_reduce(a_scan_data_e_field, block_size=(1, pool_window[0], pool_window[1]), func=np.mean)
             if a_scan_data_h_field.size > 0:
                 a_scan_data_h_field = block_reduce(a_scan_data_h_field, block_size=(1, 1, pool_window[0], pool_window[1]), func=np.mean)
-        full_data[f"{str(a_scan_number).zfill(4)}_E"] = a_scan_data_e_field
-        full_data[f"{str(a_scan_number).zfill(4)}_H"] = a_scan_data_h_field
-        full_data[f"{str(a_scan_number).zfill(4)}_times"] = times
+        full_data[f"{str(a_scan_number).zfill(5)}_E"] = a_scan_data_e_field
+        full_data[f"{str(a_scan_number).zfill(5)}_H"] = a_scan_data_h_field
+        full_data[f"{str(a_scan_number).zfill(5)}_times"] = times
 
         if remove_files:
             folder.rmdir()

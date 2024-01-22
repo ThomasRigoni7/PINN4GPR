@@ -4,3 +4,4 @@ pymunk==6.6.0
 vtk==9.3.0
 opencv-python==4.8.1.78
 scikit-image==0.22.0
+PyYAML==6.0.1
