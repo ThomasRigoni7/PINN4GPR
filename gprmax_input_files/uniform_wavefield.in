@@ -1,0 +1,17 @@
+## General comands
+#title: prova_wavefield
+#domain: 20 20 0.002
+#dx_dy_dz: 0.002 0.002 0.002 
+#time_window: 1e-7
+#output_dir: /home/trigoni/tesi/PINN4GPR/gprmax_output_files/uniform_wavefield
+
+## Source:
+#waveform: ricker 1 150000000.0 my_ricker 
+#hertzian_dipole: z 10 10 0.001 my_ricker 
+
+
+#python:
+for i in range(1, 100):
+    t = i*1e-9
+    print(f"#snapshot: 0 0 0 20 20 0.002 0.1 0.1 0.002 {t} {'/home/trigoni/tesi/PINN4GPR/gprmax_output_files/scan_0000_snaps' + str(current_model_run) + '/snap_' + str(t)}")
+#end_python:

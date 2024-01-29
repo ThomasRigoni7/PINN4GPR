@@ -1,7 +1,7 @@
 # Project-specific
 .docs_venv/
 .vscode/
-data/
+dataset/
 gprmax_input_files/generated/
 gprmax_tmp_files/
 gprmax_output_files/
