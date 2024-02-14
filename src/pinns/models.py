@@ -76,10 +76,10 @@ class PINN4GPR(nn.Module):
     def __init__(self, 
                  in_shape: tuple[int, int, int] = (3, 284, 250),
                  cnn_channels: list[int] = [64]*4 + [16],
-                 bottleneck_nodes: int = 256,
+                 bottleneck_nodes: int = 128,
                  img_padding: tuple[int, int] = (3, 2), 
                  mlp_inputs: int = 3,
-                 mlp_layer_sizes: list[int] = [256]*5,
+                 mlp_layer_sizes: list[int] = [128]*4,
                  mlp_outputs: int = 1,
                  activations: nn.Module = nn.SiLU) -> None:
         super().__init__()
@@ -87,16 +87,22 @@ class PINN4GPR(nn.Module):
         self.padding = Pad(img_padding, padding_mode="reflect")
 
         padded_input_shape = (in_shape[0], in_shape[1] + 2*img_padding[1], in_shape[2] + 2*img_padding[0])
-        self.cnn = CNN(padded_input_shape, cnn_channels, bottleneck_nodes, activations)
+        self.cnn = CNN(padded_input_shape, cnn_channels, bottleneck_nodes,activations)
 
-        self.mlp = MLP(mlp_inputs + bottleneck_nodes, mlp_layer_sizes, mlp_outputs, activations)
+        self.input_linear = nn.Sequential(nn.Linear(mlp_inputs, bottleneck_nodes), activations())
+        self.mlp = MLP(bottleneck_nodes * 2, mlp_layer_sizes, mlp_outputs, activations)
 
     def forward(self, mlp_inputs: torch.Tensor, geometry: torch.Tensor):
         padded_geometry = self.padding(geometry)
-        bottleneck_nodes = self.cnn(padded_geometry)
-        x = torch.cat([mlp_inputs, bottleneck_nodes], dim=-1)
+        cnn_embeddings = self.cnn(padded_geometry)
+        linear_embeddings = self.input_linear(mlp_inputs)
+        x = torch.cat([linear_embeddings, cnn_embeddings], dim=-1)
         return self.mlp(x)
     
+    def cnn_embedding_forward(self, mlp_inputs: torch.Tensor, geometry_embeddings: torch.Tensor):
+        linear_embeddings = self.input_linear(mlp_inputs)
+        x = torch.cat([linear_embeddings, geometry_embeddings], dim=-1)
+        return self.mlp(x)
 
 if __name__ == "__main__":
     import numpy as np
@@ -113,9 +119,12 @@ if __name__ == "__main__":
     print("Geometry:", geometry.shape)
 
     inputs = torch.tensor([[0., 0., 0.], [0.2, 0.2, 0.2]])
-    geometires = torch.stack([geometry[:3]]*2)
+    geometries = torch.stack([geometry[:3]]*2)
+
+    print("inputs shape:", inputs.shape)
+    print("input geom shape:", geometries.shape)
 
     net = PINN4GPR()
-    out = net(inputs, geometires)
+    out = net(inputs, geometries)
 
     print(out)

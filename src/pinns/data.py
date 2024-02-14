@@ -114,14 +114,13 @@ class DatasetCreator():
         Constructs and returns the samples paths for geometry, raw output, snapshots and view file.
         """
 
-        
-        dataset_paths = [], [], []
+        dataset_paths = []
 
         for i, split in enumerate([self.train_set, self.val_set, self.test_set]):
             paths = self.construct_paths(self.dataset_location, split)
-            dataset_paths[i] = paths
+            dataset_paths.append(paths)
 
-        return dataset_paths
+        return tuple(dataset_paths)
 
 class GPRDataset(ABC, Dataset):
     def __init__(self, samples_dict: list[dict[str, Path]]):
@@ -179,12 +178,12 @@ class InMemoryDataset(GPRDataset):
         n_index = index // (x_shape * y_shape * t_shape)
 
         # one cell is spatially 0.006m both in x and y directions
-        x = x_index * 0.006
-        y = y_index * 0.006
+        x = torch.tensor([x_index], dtype=torch.float32) * 0.006
+        y = torch.tensor([y_index], dtype=torch.float32) * 0.006
         t = self.times[n_index][t_index]
         u = self.snapshots[n_index][t_index][y_index][x_index]
 
-        return x, y, t, u, n_index
+        return x.squeeze(), y.squeeze(), t, u, n_index
 
 class StorageDataset(GPRDataset):
     def __init__(self, samples_dict: list[dict[str, Path]], snapshot_shapes = [24, 284, 250]):
@@ -214,8 +213,8 @@ class StorageDataset(GPRDataset):
         # geometries have not been block reduced
         # geom = block_reduce(geom, block_size=(1, 3, 3), func=np.mean)
         
-        x = x_index * 0.006
-        y = y_index * 0.006
+        x = torch.tensor([x_index], dtype=torch.float32) * 0.006
+        y = torch.tensor([y_index], dtype=torch.float32) * 0.006
         t = times[t_index]
         u = snaps[t_index][y_index][x_index]
 
@@ -236,7 +235,9 @@ class StorageDataset(GPRDataset):
 
 
 if __name__ == "__main__":
+
     creator = DatasetCreator("dataset")
+    DEVICE = "cuda:0"
 
     filter = lambda x : x.track_type == "AC_rail"
     creator.filter("train", filter)
@@ -246,7 +247,24 @@ if __name__ == "__main__":
     dataset = InMemoryDataset(train_paths[:100])
     # dataset = StorageDataset(train_paths[:100])
 
-    loader = DataLoader(dataset, batch_size = 240000, num_workers=64)
+    loader = DataLoader(dataset, batch_size = 8192, num_workers=64)
+
+    from src.pinns.models import PINN4GPR
+    model = PINN4GPR().to(DEVICE)
+    # 
+    geometry_embeddings = torch.randn((100, 128)).to(DEVICE)
 
     for batch in tqdm(loader):
-        pass
+        xs, ys, ts, us, geometry_indexes = batch
+
+        xs = xs.to(DEVICE)
+        ys = ys.to(DEVICE)
+        ts = ts.to(DEVICE)
+        us = us.to(DEVICE)
+        geometry_indexes = geometry_indexes.to(DEVICE)
+
+        geometries = geometry_embeddings[geometry_indexes]
+
+        mlp_inputs = torch.stack([xs, ys, ts], dim=-1)
+
+        output = model.cnn_embedding_forward(mlp_inputs, geometries)
