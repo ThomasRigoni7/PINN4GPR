@@ -28,7 +28,7 @@ class MyNormalizer():
         if data is not None:
             data = (data.T / self.data_scale).T
         if labels is not None: 
-            labels = data / self.label_scale
+            labels = labels / self.label_scale
         
         return data, labels
     

@@ -1,4 +1,5 @@
 from typing import Callable
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -191,51 +192,37 @@ def get_PINN_loss_fn(training_points_loss_fn):
         # lapl(f(x, y=0, t)) = 0
         # xb, yb, tb = boundary_points
 
-        # EM_values = get_EM_values(xb, yb, geometry)
-        # epsilon_r, _, mu_r, _ = EM_values
+        # # split each point into 2, one in each medium
+        # yb0 = yb - 0.001
+        # yb1 = yb + 0.001
+
+        # epsilon_r0, _, mu_r0, _ = get_EM_values(xb, yb0, geometry)
+        # epsilon_r1, _, mu_r1, _ = get_EM_values(xb, yb1, geometry)
+
+        # # calculate the speed of the EM waves in the two mediums
+        # v0 = torch.sqrt(1 / (epsilon_r0 * EPSILON_0 * mu_r0* MU_0))
+        # v1 = torch.sqrt(1 / (epsilon_r1 * EPSILON_0 * mu_r1* MU_0))
+
+        # speed_factor = v0 / v1
+
 
         # xb.requires_grad_()
-        # yb.requires_grad_()
+        # yb0.requires_grad_()
+        # yb1.requires_grad_()
         # tb.requires_grad_()
-        # ub = f(xb, yb, tb)
-        # dfx = torch.autograd.grad(ub, xb, torch.ones_like(ub), create_graph=True)[0]
-        # dfy = torch.autograd.grad(ub, yb, torch.ones_like(ub), create_graph=True)[0]
-        # dfxx = torch.autograd.grad(dfx, xb, torch.ones_like(dfx), create_graph=True)[0]
-        # dfyy = torch.autograd.grad(dfy, yb, torch.ones_like(dfy), create_graph=True)[0]
-        # boundary_loss = (1/(mu_r * epsilon_r)) * (dfxx + dfyy)
-        # boundary_loss = l(boundary_loss, torch.zeros_like(boundary_loss))
-
+        # ub0 = f(xb, yb0, tb)
+        # ub1 = f(xb, yb1, tb)
+        # # dft0 = torch.autograd.grad(ub0, tb, torch.ones_like(ub0), create_graph=True)[0]
+        # # dft1 = torch.autograd.grad(ub1, tb, torch.ones_like(ub1), create_graph=True)[0]
+        # boundary_loss_field = ub0 - ub1
+        # # boundary_loss_derivative = 1e-10 * (dft0 - dft1)
+        # # boundary_loss = l(boundary_loss_field, torch.zeros_like(boundary_loss_field)) + \
+        # #     l(boundary_loss_derivative, torch.zeros_like(boundary_loss_derivative))
+        # boundary_loss = l(boundary_loss_field, torch.zeros_like(boundary_loss_field))
         boundary_loss = 0
-
-        # paraxial absorbing conditions:
-        # 2nd order:
-        # u_tt - u_tx - 1/2 u_yy|x=0 = 0
-        # u_tt - u_ty - 1/2 u_xx|y=0 = 0
-        # u_tt + u_tx - 1/2 u_yy|x=a = 0
-        # u_tt + u_ty - 1/2 u_xx|y=b = 0
-        # xb, yb, tb = boundary_points_xmin
-        # boundary_parax_loss_xmin = d2f_dt2(xb, yb, tb, params) - d2f_dtx(xb, yb, tb, params) - 0.5 * d2f_dy2(xb, yb, tb, params)
-        # boundary_parax_loss_xmin = l(boundary_parax_loss_xmin, torch.zeros_like(boundary_parax_loss_xmin))
-
-        # xb, yb, tb = boundary_points_ymin
-        # boundary_parax_loss_ymin = d2f_dt2(xb, yb, tb, params) - d2f_dty(xb, yb, tb, params) - 0.5 * d2f_dx2(xb, yb, tb, params)
-        # boundary_parax_loss_ymin = l(boundary_parax_loss_ymin, torch.zeros_like(boundary_parax_loss_ymin))
-
-        # xb, yb, tb = boundary_points_xmax
-        # boundary_parax_loss_xmax = d2f_dt2(xb, yb, tb, params) + d2f_dtx(xb, yb, tb, params) - 0.5 * d2f_dy2(xb, yb, tb, params)
-        # boundary_parax_loss_xmax = l(boundary_parax_loss_xmax, torch.zeros_like(boundary_parax_loss_xmax))
-
-        # xb, yb, tb = boundary_points_ymax
-        # boundary_parax_loss_ymax = d2f_dt2(xb, yb, tb, params) + d2f_dty(xb, yb, tb, params) - 0.5 * d2f_dx2(xb, yb, tb, params)
-        # boundary_parax_loss_ymax = l(boundary_parax_loss_ymax, torch.zeros_like(boundary_parax_loss_ymax))
-
-        # boundary_parax_loss = boundary_parax_loss_xmin + boundary_parax_loss_ymin + boundary_parax_loss_xmax + boundary_parax_loss_ymax
-
 
         # collocation points:
         # d2f_dt2 - 1/(mu*eps) * (d2f_dx2 + d2f_dy2) + (sigma/epsilon)*df_dt = 0
-
-
         xc, yc, tc = collocation_points_xyt
         EM_values = get_EM_values(xc, yc, geometry)
         epsilon, sigma, mu, _ = EM_values
@@ -324,7 +311,7 @@ def show_field(img: torch.Tensor, ax: Axes = None, vmin=None, vmax=None):
         plt.imshow(img)
         plt.show()
 
-def show_predictions(f_PINN: Callable, f_regular: Callable, samples: torch.Tensor):
+def show_predictions(f_PINN: Callable, f_regular: Callable, samples: torch.Tensor, save_path: str | Path = None):
     # show predictions of the field for NN and PINN
     ground_truth = samples[3].reshape(IMG_SIZE).cpu()
     regular_predictions =  predict_functional(f_regular, samples)
@@ -346,4 +333,9 @@ def show_predictions(f_PINN: Callable, f_regular: Callable, samples: torch.Tenso
     show_field(PINN_predictions - ground_truth, axs[1][2], vmin, vmax)
     axs[1][2].set_title("PINN - GT")
     fig.colorbar(mappable, ax=axs, location="right", shrink=0.7)
-    plt.show()
+    if save_path is not None:
+        fig.savefig(save_path)
+    else:
+        plt.show()
+    fig.clear()
+    plt.close(fig)

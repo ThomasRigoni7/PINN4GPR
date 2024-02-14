@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import torch
 torch.manual_seed(42)
@@ -11,7 +13,7 @@ from src.pinns.paper.model import MLP, IMG_SIZE, get_f, get_PINN_warmup_loss_fn,
 from src.pinns.paper.train import train
 
 
-def two_layer(warmup: bool = True):
+def two_layer():
     """
     Trains a two-layer model PINN and NN and compares them.
     """
@@ -22,8 +24,9 @@ def two_layer(warmup: bool = True):
     N_COLLOCATION_POINTS = 40000
     N_BOUNDARY_POINTS = 5000
     COLLOCATION_DOMAIN_SIZE = (35e-9, 20, 20)
-    EPOCHS_WARMUP = 10000
-    EPOCHS = 15000
+    EPOCHS_WARMUP = 5000
+    EPOCHS = 20000
+    RESULTS_FOLDER = Path("results/two_layer")
 
     snapshots = np.load("paper_data/2layer_wavefield.npz")["00000_E"]
 
@@ -42,15 +45,15 @@ def two_layer(warmup: bool = True):
         l.append(i)
     
     geometry = np.asarray(l)
-    geometry = torch.from_numpy(np.array(l)).to(DEVICE)
+    geometry = torch.from_numpy(geometry).to(DEVICE)
 
 
     # define models and optimizers
-    PINN_model = MLP(3, [128, 128, 128, 128, 128], 1, nn.SiLU)
-    # PINN_model.apply(PINN_model.init_weights)
+    PINN_model = MLP(3, [256]*5, 1, nn.SiLU)
+    # PINN_model.load_state_dict(torch.load("checkpoints/PINN_model_best_warmup_2layers_15_21.ckp"))
     PINN_model = PINN_model.to(DEVICE)
 
-    regular_model = MLP(3, [128, 128, 128, 128, 128], 1, nn.ReLU)
+    regular_model = MLP(3, [256]*5, 1, nn.ReLU)
     regular_model = regular_model.to(DEVICE)
 
     PINN_optimizer = torch.optim.Adam(PINN_model.parameters(), lr = LR)
@@ -58,7 +61,7 @@ def two_layer(warmup: bool = True):
 
 
     # Create the dataset
-    train_indexes = list(range(15, 25))
+    train_indexes = [15, 19, 23, 27, 31, 35]
     train_dataset = PaperDataset(snapshots[train_indexes], t_offsets=train_indexes)
     print("Train dataset points:")
     train_dataset.print_info()
@@ -69,20 +72,12 @@ def two_layer(warmup: bool = True):
     val_indexes = [25]
     val_dataset = PaperDataset(snapshots[val_indexes], t_offsets=val_indexes, scaler=scaler)
     print("Validation dataset points:")
-    print("Data min:", val_dataset.data.min(dim=0).values)
-    print("Data max:", val_dataset.data.max(dim=0).values)
-    print("Label min:", val_dataset.labels.min(dim=0).values)
-    print("Label max:", val_dataset.labels.max(dim=0).values)
-    print()
+    val_dataset.print_info()
 
-    test_indexes = [40]
+    test_indexes = [45]
     test_dataset = PaperDataset(snapshots[test_indexes], t_offsets=test_indexes, scaler=scaler)
     print("Test dataset points:")
-    print("Data min:", test_dataset.data.min(dim=0).values)
-    print("Data max:", test_dataset.data.max(dim=0).values)
-    print("Label min:", test_dataset.labels.min(dim=0).values)
-    print("Label max:", test_dataset.labels.max(dim=0).values)
-    print()
+    test_dataset.print_info()
     # save_field_animation(test_dataset.snapshots.reshape((-1, *IMG_SIZE)), None, interval=50)
     # frame_60ns = val_dataset.get_frame(0)
     # show_field(frame_60ns)
@@ -108,11 +103,7 @@ def two_layer(warmup: bool = True):
     print("min:", boundary_points.min(axis=1))
     print("max:", boundary_points.max(axis=1))
 
-    boundary_points = np.stack([boundary_points[0, :N_BOUNDARY_POINTS], np.ones(N_BOUNDARY_POINTS) * 14.98, boundary_points[1, :N_BOUNDARY_POINTS] + 1.5e-8])
-
-    # push some of the boundary points after the boundary
-    pushed = RNG.uniform(size=(N_BOUNDARY_POINTS)) > 0.5
-    boundary_points[1][pushed] += 0.04
+    boundary_points = np.stack([boundary_points[0, :N_BOUNDARY_POINTS], np.ones(N_BOUNDARY_POINTS) * 15.0, boundary_points[1, :N_BOUNDARY_POINTS] + 1.5e-8])
 
     boundary_points = torch.from_numpy(boundary_points)
     boundary_points = boundary_points.to(DEVICE, torch.float32)
@@ -142,7 +133,7 @@ def two_layer(warmup: bool = True):
     print("building test dataset...")
     test_samples = torch.cat([test_dataset.data, test_dataset.labels[:, None]], dim=1).T.to(DEVICE)
 
-    if warmup:
+    if EPOCHS_WARMUP > 0:
         best_PINN_model, last_PINN_model, best_regular_model, last_regular_model = train(PINN_model,
                                                     f_PINN,
                                                     PINN_optimizer,
@@ -156,7 +147,9 @@ def two_layer(warmup: bool = True):
                                                     boundary_points,
                                                     collocation_points,
                                                     geometry,
-                                                    EPOCHS_WARMUP)
+                                                    EPOCHS_WARMUP,
+                                                    results_folder=RESULTS_FOLDER / "warmup",
+                                                    interactive=False)
 
         best_PINN_model = best_PINN_model.to(DEVICE)
         best_regular_model = best_regular_model.to(DEVICE)
@@ -165,12 +158,12 @@ def two_layer(warmup: bool = True):
         f_PINN = get_f(best_PINN_model, scaler)
         f_regular = get_f(best_regular_model, scaler)
         PINN_optimizer = torch.optim.Adam(best_PINN_model.parameters(), lr = LR)
+        torch.save(best_PINN_model.state_dict(), RESULTS_FOLDER / "PINN_model_best_warmup.ckp")
     else:
         best_PINN_model = PINN_model
         best_regular_model = regular_model
 
-    show_predictions(f_PINN, f_regular, val_samples)
-    torch.save(best_PINN_model.state_dict(), "checkpoints/PINN_model_best_warmup.ckp")
+    show_predictions(f_PINN, f_regular, val_samples, RESULTS_FOLDER / "warmup/val_predictions.png")
 
     best_PINN_model, last_PINN_model, best_regular_model, last_regular_model = train(best_PINN_model,
                                                 f_PINN,
@@ -186,18 +179,33 @@ def two_layer(warmup: bool = True):
                                                 collocation_points,
                                                 geometry,
                                                 EPOCHS,
-                                                use_scheduler=True)
+                                                use_scheduler=True,
+                                                results_folder=RESULTS_FOLDER,
+                                                interactive=False)
 
-    torch.save(last_PINN_model.state_dict(), "checkpoints/PINN_model_last.ckp")
-    torch.save(best_PINN_model.state_dict(), "checkpoints/PINN_model_best.ckp")
-    torch.save(last_regular_model.state_dict(), "checkpoints/NN_model_last.ckp")
-    torch.save(best_regular_model.state_dict(), "checkpoints/NN_model_best.ckp")
+    torch.save(best_PINN_model.state_dict(), RESULTS_FOLDER / "PINN_model_best.ckp")
+    torch.save(best_regular_model.state_dict(), RESULTS_FOLDER / "NN_model_best.ckp")
 
     best_PINN_model = best_PINN_model.to(DEVICE)
     best_regular_model = best_regular_model.to(DEVICE)
 
-    show_predictions(f_PINN, f_regular, val_samples)
-    show_predictions(f_PINN, f_regular, test_samples)
+    show_predictions(f_PINN, f_regular, val_samples, RESULTS_FOLDER / "val_predictions.png")
+    show_predictions(f_PINN, f_regular, test_samples, RESULTS_FOLDER / "test_predictions.png")
 
 if __name__ == "__main__":
-    two_layer(False)
+    two_layer()
+
+
+# 5x64
+# PINN train loss 0.04249459132552147
+# PINN val loss 0.1067247986793518
+# PINN physics loss 0.4107848107814789
+# NN train loss 1.9267771244049072
+# NN val loss 2.8269050121307373
+    
+# 5x256 still no reflection
+# PINN train loss 0.0013126502744853497
+# PINN val loss 0.00221841549500823
+# PINN physics loss 0.006338852923363447
+# NN train loss 0.07565296441316605
+# NN val loss 0.08619776368141174
