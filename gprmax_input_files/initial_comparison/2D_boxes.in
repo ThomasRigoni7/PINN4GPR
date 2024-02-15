@@ -1,5 +1,5 @@
 ## General comands
-#title: 2D_boxes_clean 
+#title: 2D_boxes
 #domain: 1.5 1.73 0.002 
 #dx_dy_dz: 0.002 0.002 0.002 
 #time_window: 2.5e-08 
@@ -13,7 +13,6 @@
 #src_steps: 0.02 0 0 
 #rx_steps: 0.02 0 0 
 
-##geometry_view: 0 0 0 1.5 1.73 0.002 0.002 0.002 0.002 2D_boxes_clean_geom n 
 
 ## Materials:
 #material: 6.5 0 1 0 ballast 
@@ -23,19 +22,21 @@
 #material: 2 0.01 1 0 dry_wood 
 #material: 8 0.01 1 0 asphalt 
 #material: 5 0 1 0 gravel 
-#soil_peplinski: 0.9 0.1 2 2.66 0.001 0.005 pss 
+#material: 4 0.01 1 0 pss
 
 ## Ballast:
 #box: 0 0.55 0 1.5 0.8 0.002 ballast_mix 
 
 ## Subgrade:
-#fractal_box: 0 0.3 0 1.5 0.55 0.002 1.5 1 1 1 5 pss my_pss 
+#fractal_box: 0 0.3 0 1.5 0.55 0.002 1.5 1 1 1 1 pss my_pss 1
 #add_surface_roughness: 0 0.55 0 1.5 0.55 0.002 1.5 1 1 0.54 0.56 my_pss 
-#fractal_box: 0 0.15 0 1.5 0.3 0.002 1.5 1 1 1 1 asphalt my_asphalt 
+#fractal_box: 0 0.15 0 1.5 0.3 0.002 1.5 1 1 1 1 asphalt my_asphalt 2
 #add_surface_roughness: 0 0.3 0 1.5 0.3 0.002 1.5 1 1 0.296 0.304 my_asphalt 
-#fractal_box: 0 0 0 1.5 0.15 0.002 1.5 1 1 1 1 gravel my_gravel 
+#fractal_box: 0 0 0 1.5 0.15 0.002 1.5 1 1 1 1 gravel my_gravel 3
 #add_surface_roughness: 0 0.15 0 1.5 0.15 0.002 1.5 1 1 0.146 0.154 my_gravel 
 
 ## Sleepers:
 #box: 0.3 0.73 0 0.47 0.83 0.002 concrete 
 #box: 1.0 0.73 0 1.17 0.83 0.002 concrete 
+
+##geometry_view: 0 0 0 1.5 1.73 0.002 0.002 0.002 0.002 output/2D_boxes_view n 
