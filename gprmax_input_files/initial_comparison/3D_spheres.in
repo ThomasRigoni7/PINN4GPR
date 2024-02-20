@@ -1,0 +1,59 @@
+## General comands
+#title: 3D_spheres
+#domain: 1.5 1.73 1.6 
+#dx_dy_dz: 0.004 0.004 0.004 
+#time_window: 2.5e-08 
+#output_dir: output/3D_spheres/
+#messages: n
+
+## Source:
+#waveform: ricker 1 1000000000.0 my_ricker 
+#hertzian_dipole: z 0.2 1.53 0.8 my_ricker 
+#rx: 0.35 1.53 0.8 
+#src_steps: 0.02 0 0 
+#rx_steps: 0.02 0 0 
+
+
+## Materials:
+#material: 6.5 0 1 0 ballast 
+#material: 7 0 1 0 dry_sand 
+#material: 8 0.01 1 0 concrete 
+#material: 2 0.01 1 0 dry_wood 
+#material: 8 0.01 1 0 asphalt 
+#material: 5 0 1 0 gravel 
+#soil_peplinski: 0.9 0.1 2 2.66 0.001 0.005 pss 
+
+## Ballast:
+
+#python: 
+from gprMax.input_cmd_funcs import *
+
+data_file = open("gprmax_input_files/initial_comparison/ballast_stones_3D.txt",'r')
+for line in data_file:
+    cir = line.split()
+    sphere(float(cir[0]), float(cir[1]) + 0.55, float(cir[2]) , float(cir[3]), 'ballast')
+
+#end_python:
+
+## Subgrade:
+#fractal_box: 0 0.3 0 1.5 0.55 1.6 1.5 1 1 1 5 pss my_pss 1
+#add_surface_roughness: 0 0.55 0 1.5 0.55 1.6 1.5 1 1 0.54 0.56 my_pss 
+#fractal_box: 0 0.15 0 1.5 0.3 1.6 1.5 1 1 1 1 asphalt my_asphalt 2
+#add_surface_roughness: 0 0.3 0 1.5 0.3 1.6 1.5 1 1 0.296 0.304 my_asphalt 
+#fractal_box: 0 0 0 1.5 0.15 1.6 1.5 1 1 1 1 gravel my_gravel 3
+#add_surface_roughness: 0 0.15 0 1.5 0.15 1.6 1.5 1 1 0.146 0.154 my_gravel 
+
+## Sleepers:
+#box: 0.3 0.73 0 0.47 0.83 1.6 concrete 
+#box: 1.0 0.73 0 1.17 0.83 1.6 concrete 
+
+## Rails:
+#box: 0 0.83 0.02 1.5 0.85 0.145 pec 
+#box: 0 0.85 0.075 1.5 0.951 0.091 pec 
+#box: 0 0.951 0.049 1.5 0.991 0.116 pec 
+#box: 0 0.83 1.455 1.5 0.85 1.58 pec 
+#box: 0 0.85 1.51 1.5 0.951 1.526 pec 
+#box: 0 0.951 1.484 1.5 0.991 1.551 pec 
+
+##geometry_view: 0 0 0 1.5 1.73 1.6 0.004 0.004 0.004 output/3D_spheres_pep_rails/3D_spheres_rails_view n 
+#geometry_objects_write: 0 0 0 1.5 1.73 1.6 3D_spheres_geom

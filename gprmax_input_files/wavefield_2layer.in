@@ -1,0 +1,22 @@
+## General comands
+#title: wavefield_2layer
+#domain: 20 20 0.005
+#dx_dy_dz: 0.005 0.005 0.005 
+#time_window: 1e-7
+#output_dir: /home/trigoni/tesi/PINN4GPR/wavefield_2layer/
+
+## Source:
+#waveform: ricker 1 150000000.0 my_ricker 
+#hertzian_dipole: z 10 10 0.0025 my_ricker 
+#rx: 15 15 0.0025
+
+#material: 5 0 1 0 soil
+#box: 0 0 0 20 5 0.005 soil
+
+#python:
+for i in range(1, 100):
+    t = i*1e-9
+    print(f"#snapshot: 0 0 0 20 20 0.005 0.1 0.1 0.005 {t} {'/home/trigoni/tesi/PINN4GPR/wavefield_2layer/scan_00000_snaps' + str(current_model_run) + '/snap_' + str(t)}")
+#end_python:
+
+#geometry_objects_write: 0 0 0 20 20 0.005 /home/trigoni/tesi/PINN4GPR/wavefield_2layer/geometry

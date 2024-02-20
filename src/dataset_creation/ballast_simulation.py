@@ -28,11 +28,52 @@ class BallastSimulation:
                  buffer_y: float = 0,
                  verbose: bool = False):
         self.domain_size = domain_size
-        self.radii_distribution = radii_distribution
-        if radii_distribution == None:
-            self.radii_distribution = self.sample_radii_distribution(self._get_standard_sieve_bounds())
+        self.input_radii_distribution = radii_distribution
         self.buffer_y = buffer_y
         self.verbose = verbose
+
+    @classmethod
+    def get_clean_ballast_radii_distrib(cls) -> np.ndarray:
+        """
+        Returns the radii distribution for clean ballast without fouling.
+
+        Returns
+        -------
+        np.ndarray
+            The radii distribution
+        """
+        ballast_radii_distrib = np.array([
+            [0.063, 0.050, 0.15],
+            [0.050, 0.040, 0.45],
+            [0.040, 0.0315, 0.33],
+            [0.0315, 0.0224, 0.05],
+            [0.0224, 0.00476, 0.02]
+        ])
+        # convert diameters to radiuses
+        ballast_radii_distrib[:, 0:2] = ballast_radii_distrib[:, 0:2] / 2
+        return ballast_radii_distrib
+    
+    @classmethod
+    def get_fouled_ballast_radii_distrib(cls) -> np.ndarray:
+        """
+        Returns the radii distribution for very fouled ballast.
+
+        Returns
+        -------
+        np.ndarray
+            The radii distribution
+        """
+        ballast_radii_distrib = np.array([
+            [0.063, 0.050, 0.10],
+            [0.050, 0.040, 0.30],
+            [0.040, 0.0315, 0.25],
+            [0.0315, 0.0224, 0.15],
+            [0.0224, 0.00476, 0.20]
+        ])
+        # convert diameters to radiuses
+        ballast_radii_distrib[:, 0:2] = ballast_radii_distrib[:, 0:2] / 2
+        return ballast_radii_distrib
+
 
     def _get_standard_sieve_bounds(self) -> np.ndarray:
         """
@@ -54,7 +95,7 @@ class BallastSimulation:
         sieve_bounds = np.vstack([sieve_63,sieve_50,sieve_40,sieve_31,sieve_22,sieve_low_limit])
         return sieve_bounds
 
-    def sample_radii_distribution(self, sieve_diameter_bounds: np.ndarray) -> np.ndarray:
+    def sample_radii_distribution(self, sieve_diameter_bounds: np.ndarray, random_generator: np.random.Generator) -> np.ndarray:
         """
         Picks a random radii distribution.
          
@@ -70,7 +111,9 @@ class BallastSimulation:
             [0.02, 0.1, 0.5]]
 
             means three sieves of diameter 0.06, 0.04, 0.02, where each entry is [sieve_diameter, mass_lower_bound, mass_upper_bound]
-
+        random_generator : np.random.Generator
+            random generator to use for the sampling
+        
         Returns
         -------
         np.ndarray of shape (n_sieves - 1, 3)
@@ -81,7 +124,7 @@ class BallastSimulation:
         grad_curve = sieve_diameter_bounds[:,[0,1]]
 
         # use of beta distribution to pick a value between sieve bounds 
-        grad_curve[:,1] = np.random.beta(2,2)*(sieve_diameter_bounds[:,2] - sieve_diameter_bounds[:,1]) + sieve_diameter_bounds[:,1]
+        grad_curve[:,1] = random_generator.beta(2,2)*(sieve_diameter_bounds[:,2] - sieve_diameter_bounds[:,1]) + sieve_diameter_bounds[:,1]
 
         grad_curve_conv = np.zeros([grad_curve.shape[0]-1,3])
         for i in range(grad_curve.shape[0]-1):
@@ -95,7 +138,7 @@ class BallastSimulation:
                                      space: pymunk.Space, 
                                      required_void: float,
                                      mult_factor: float,
-                                     random_generator: np.random.Generator = None) -> pymunk.Space:
+                                     random_seed: np.random.Generator | int = None) -> pymunk.Space:
         """
         Use the Random Sequential Absorption algorithm to randomly create the ballast stones inside the space.
 
@@ -107,8 +150,8 @@ class BallastSimulation:
             fraction of void surface to fill before returning.
         mult_factor : float
             multiplication factor to use in the pymunk space for visualization purposes.
-        random_generator : np.random.Generator, default: None
-            random generator to use in the RSA algorithm. If None, creates a new generator.
+        random_seed : np.random.Generator | int, default: None
+            random seed for the generator to use in the RSA algorithm. If None, creates a new generator.
 
         Returns
         -------
@@ -117,11 +160,17 @@ class BallastSimulation:
         """
 
         size = self.domain_size[0], self.domain_size[1] + self.buffer_y
-        random_generator = np.random.default_rng(random_generator)
+        random_generator = np.random.default_rng(random_seed)
         cur_void = 1
         req_void_cur = 1
         timeout_start = time.time()
-        for grain in self.radii_distribution:
+
+        # if no specified radii distribution, use the standard sieve bounds and sample a distribution.
+        radii_distribution = self.input_radii_distribution
+        if radii_distribution is None:
+            radii_distribution = self.sample_radii_distribution(self._get_standard_sieve_bounds(), random_generator)
+        
+        for grain in radii_distribution:
             req_void_cur -= grain[2]*(1-required_void)
             while req_void_cur < cur_void:
                 
@@ -184,7 +233,7 @@ class BallastSimulation:
             running_time: float = 2,
             time_step: float = 0.002,
             display: bool = False,
-            random_generator: np.random.Generator = None):
+            random_seed: np.random.Generator | int = None):
         """
         Run the siumlation.
         
@@ -201,8 +250,8 @@ class BallastSimulation:
             time step at which to run the simulation. Smaller steps mean more precise simulation, but more computations.
         display : bool, default: False
             Flag to set if the simulation should be displayed inside a pygame window.
-        random_generator : np.random.Generator, default: False
-            random generator to use in the RSA algorithm. If None, creates a new generator.
+        random_seed : np.random.Generator | int, default: None
+            random seed to use in the generator for the RSA algorithm. If None, creates a new generator.
             
         Returns
         =======
@@ -229,8 +278,8 @@ class BallastSimulation:
 
         # Required void after RSA
         # NOTE: 0.41 - 0.45 seems reasonable
-        required_void = 0.44
-        space = self.random_sequential_adsorption(space, required_void, mult_factor, random_generator)
+        required_void = 0.44        
+        space = self.random_sequential_adsorption(space, required_void, mult_factor, random_seed)
 
         space = self._run(space, running_time, time_step, display, mult_factor)
 
@@ -246,7 +295,16 @@ class BallastSimulation:
         return res
 
 if __name__ == "__main__":
-    simulation = BallastSimulation((1.5, 0.4), buffer_y=0.4)
-    ballast_stones = simulation.run(display=True)
+    from scipy.stats import beta as beta_distrib
 
-    print("Final number of ballast stones:", len(ballast_stones))
+    clean_ballast_radii_distrib = BallastSimulation.get_clean_ballast_radii_distrib()
+    
+    fouled_ballast_radii_distrib = BallastSimulation.get_fouled_ballast_radii_distrib()
+
+    simulation = BallastSimulation((1.5, 0.4), buffer_y=0.4, radii_distribution=clean_ballast_radii_distrib)
+    ballast_stones = simulation.run(display=True)
+    print("Final number of ballast stones in clean ballast:", len(ballast_stones))
+
+    simulation = BallastSimulation((1.5, 0.4), buffer_y=0.4, radii_distribution=fouled_ballast_radii_distrib)
+    ballast_stones = simulation.run(display=True)
+    print("Final number of ballast stones in fouled ballast:", len(ballast_stones))
