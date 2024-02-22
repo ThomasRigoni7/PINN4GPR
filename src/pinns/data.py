@@ -146,6 +146,7 @@ class InMemoryDataset(GPRDataset):
             snaps = np.load(d["snapshots"])["00000_E"]
             t = np.load(d["snapshots"])["00000_times"]
             geom = np.load(d["geometry"])
+            geom = block_reduce(geom, block_size=(1, 3, 3), func=np.mean)
 
             snapshots.append(snaps)
             times.append(t)
@@ -267,4 +268,8 @@ if __name__ == "__main__":
 
         mlp_inputs = torch.stack([xs, ys, ts], dim=-1)
 
-        output = model.cnn_embedding_forward(mlp_inputs, geometries)
+        output = model.forward_cnn_embeddings(mlp_inputs, geometries)
+
+        g = dataset.geometries[0][:3].to(DEVICE)
+
+        output = model.forward_common_geometry(mlp_inputs, g)
