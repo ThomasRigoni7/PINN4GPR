@@ -6,23 +6,26 @@ from tqdm import tqdm
 from src.visualization.misc import save_field_animation
 from models import Time2Image
 
-DEVICE = "cuda:0"
+DEVICE = "cuda:2"
 EPOCHS = 5000
 
 
 def time2Image():
 
-    snapshots = np.load("paper_data/uniform_wavefield.npz")["0000_E"]
+    snapshots = np.load("munnezza/output/scan_00000/snapshots.npz")["00000_E"]
+    # snapshots = np.load("paper_data/2layer_wavefield.npz")["00000_E"]
+    #snapshots = np.load("paper_data/uniform_wavefield.npz")["0000_E"]
 
     snapshots = torch.from_numpy(snapshots).to(DEVICE, dtype=torch.float32)
-    times = np.load("paper_data/uniform_wavefield.npz")["0000_times"]
+    #times = np.load("paper_data/uniform_wavefield.npz")["0000_times"]
+    times = np.load("munnezza/output/scan_00000/snapshots.npz")["00000_times"]
     times = torch.from_numpy(times).to(DEVICE, dtype=torch.float32)
 
-    train_set = snapshots[10:50]
-    save_field_animation(train_set.cpu().numpy(), "figures/time2image_label.gif")
-    train_times = times[10:50]
+    train_set = snapshots[20:150:10]
+    save_field_animation(train_set.cpu().numpy(), "figures/time2image_rail_label.gif", interval=100)
+    train_times = times[20:150:10]
 
-    model = Time2Image([1, 64, 256, 512, 2500], [50, 50], cnn_layers=[1, 64, 64])
+    model = Time2Image([1, 64, 256, 512, 4608], [72, 64], cnn_layers=[1, 64, 64])
 
     model = model.to(DEVICE)
     loss_fn = nn.MSELoss()
@@ -38,23 +41,21 @@ def time2Image():
         
         prediction = model(t)
         prediction *= 500
-        loss = loss_fn(prediction.squeeze(), train_set)
+        prediction = prediction.squeeze()
+        prediction = prediction[:, 2:-2, 3:-3]
+
+        loss = loss_fn(prediction, train_set)
         loss.backward()
         optimizer.step()
-        
 
-    preds = []
-    for t, snap in zip(train_times, train_set):
-        optimizer.zero_grad()
+        if (e+1) % 100 == 0:
+            print(loss.item())
         
-        t = (t * 1e8).unsqueeze(0)
-        prediction = model(t)
-        prediction *= 500
-        loss = loss_fn(prediction.squeeze(), snap)
-        print(loss)
-        preds.append(prediction.squeeze().cpu().detach().numpy())
+    preds = model(t)
+    preds = preds.squeeze()
+    preds = preds[:, 2:-2, 3:-3]
     
-    save_field_animation(preds, "figures/time2image.gif")
+    save_field_animation(preds.cpu().detach().numpy(), "figures/time2image_rail.gif")
 
 if __name__ == "__main__":
     time2Image()
