@@ -14,10 +14,10 @@ import shutil
 import numpy as np
 import time
 
-from .convert_to_np import convert_geometry_to_np, convert_snapshots_to_np
-from .inputfile import InputFile
-from .configuration import GprMaxConfig
-from .statistics import DatasetStats
+from src.dataset_creation.convert_to_np import convert_geometry_to_np, convert_snapshots_to_np
+from src.dataset_creation.inputfile import InputFile
+from src.dataset_creation.configuration import GprMaxConfig
+from src.dataset_creation.statistics import DatasetStats
 
 
 def _parse_arguments():
@@ -28,6 +28,7 @@ def _parse_arguments():
     parser = argparse.ArgumentParser()
 
     # general settings
+    parser.add_argument("config_file", type=str, help="Path to the gprmax yaml config file.")
     parser.add_argument("-ns", "--n_samples", type=int, help="Number of input files to generate/simulations to run.")
     parser.add_argument("-na", "--n_ascans", type=int,
                         help="Number of A-scans that constitute a B-scan")
@@ -43,8 +44,6 @@ def _parse_arguments():
                         help="Directory to store the gprMax intermediate files.")
     parser.add_argument("--output_dir", type=str,
                         help="Directory to store the final results.")
-    parser.add_argument("-f", "--config_file", type=str, default="gprmax_config.yaml",
-                        help="Path to the gprmax yaml config file.")
     parser.add_argument("-s", "--seed", type=int,
                         help="The seed used for dataset random generation. The entire generated dataset is deterministic based on this seed.")
     
@@ -183,8 +182,10 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
     output_dir = Path(output_dir)
 
     gpu = [0] if gpu else None
-    
-    for f in tqdm(list(input_dir.glob("*.in"))):
+
+    input_files = list(input_dir.glob("*.in"))
+    input_files.sort()
+    for f in tqdm(input_files):
         output_files_basename = f.stem
         sim_output_dir = output_dir / output_files_basename
         sim_output_dir.mkdir(parents=True, exist_ok=True)

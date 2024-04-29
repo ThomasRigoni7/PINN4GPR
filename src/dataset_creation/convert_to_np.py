@@ -7,6 +7,7 @@ import numpy as np
 from skimage.measure import block_reduce
 import h5py
 from pathlib import Path
+from tqdm import tqdm
 
 def _update_debye_er(materials_list: list[str], debye_materials: list[str], frequency: float=1e9):
     """
@@ -218,7 +219,7 @@ def convert_snapshots_to_np(snapshot_folder : str | Path,
 
         a_scan_data_e_field = []
         a_scan_data_h_field = []
-        for file in snapshot_files:
+        for file in tqdm(snapshot_files):
             e_field, h_field = extract_snapshot_fields_numpy(file)
             e_field = e_field[:, :, 2]
             h_field = h_field[:, :, 0:2]
