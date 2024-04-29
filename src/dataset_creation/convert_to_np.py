@@ -219,7 +219,7 @@ def convert_snapshots_to_np(snapshot_folder : str | Path,
 
         a_scan_data_e_field = []
         a_scan_data_h_field = []
-        for file in tqdm(snapshot_files):
+        for file in snapshot_files:
             e_field, h_field = extract_snapshot_fields_numpy(file)
             e_field = e_field[:, :, 2]
             h_field = h_field[:, :, 0:2]

@@ -19,6 +19,19 @@ from src.dataset_creation.inputfile import InputFile
 from src.dataset_creation.configuration import GprMaxConfig
 from src.dataset_creation.statistics import DatasetStats
 
+import contextlib
+import sys
+
+@contextlib.contextmanager
+def _redirect_stdout(log_file):
+    save_stdout = sys.stdout
+    save__stdout__ = sys.__stdout__
+    sys.stdout = log_file
+    sys.__stdout__ = sys.stdout
+    yield
+    sys.stdout = save_stdout
+    sys.__stdout__ = save__stdout__
+
 
 def _parse_arguments():
     """
@@ -95,7 +108,8 @@ def create_gprmax_input_files(config: GprMaxConfig):
 
     stats = {}
     rng = np.random.default_rng(config.seed)
-    
+
+    print("Generating input files:")    
     for file_number in tqdm(range(config.n_samples)):
         filename = f"scan_{str(file_number).zfill(5)}"
         file_path = config.input_dir / filename
@@ -108,23 +122,7 @@ def create_gprmax_input_files(config: GprMaxConfig):
     stats = DatasetStats(stats)
 
     stats.write_metadata_files(config.input_dir / "metadata")
-    
 
-
-##############################################
-# Create a nostdout context
-import contextlib
-import sys
-class _DummyFile(object):
-    def write(self, x): pass
-
-@contextlib.contextmanager
-def _nostdout():
-    save_stdout = sys.stdout
-    sys.stdout = _DummyFile()
-    yield
-    sys.stdout = save_stdout
-###############################################
     
 def check_gpu() -> bool:
     """
@@ -177,6 +175,11 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
     """
     from gprMax import run as gprmax_run
     from tools.outputfiles_merge import merge_files
+
+    print("Running gprMax on the input files:")
+    log_file_path = output_dir / "gprmax_output.log"
+    print("gprMax output logs are stored in", log_file_path)
+
     input_dir = Path(input_dir)
     tmp_dir = Path(tmp_dir)
     output_dir = Path(output_dir)
@@ -185,44 +188,48 @@ def run_simulations(input_dir: str | Path, tmp_dir: str | Path, output_dir: str 
 
     input_files = list(input_dir.glob("*.in"))
     input_files.sort()
-    for f in tqdm(input_files):
-        output_files_basename = f.stem
-        sim_output_dir = output_dir / output_files_basename
-        sim_output_dir.mkdir(parents=True, exist_ok=True)
 
-        # create the temporary snapshot directories
-        for i in range(1, n_ascans + 1):
-            snapshot_dir = tmp_dir / f"{f.stem}_snaps{i}"
-            snapshot_dir.mkdir(parents=True, exist_ok=True)
+    with open(log_file_path, "w") as logfile:
+        for f in tqdm(input_files):
+            output_files_basename = f.stem
+            sim_output_dir = output_dir / output_files_basename
+            sim_output_dir.mkdir(parents=True, exist_ok=True)
 
-        # run sims
-        gprmax_run(str(f), n_ascans, geometry_fixed=False, geometry_only=geometry_only, gpu=gpu)
+            # create the temporary snapshot directories
+            for i in range(1, n_ascans + 1):
+                snapshot_dir = tmp_dir / f"{f.stem}_snaps{i}"
+                snapshot_dir.mkdir(parents=True, exist_ok=True)
 
-        # merge output A-scans
-        if not geometry_only:
-            merged_output_file_name = output_files_basename + "_merged.out"
-            if n_ascans > 1:
-                merge_files(str(tmp_dir/ output_files_basename), removefiles=True)
-                (tmp_dir/merged_output_file_name).rename(sim_output_dir/merged_output_file_name)
-            elif n_ascans == 1:
-                (tmp_dir/(output_files_basename + ".out")).rename(sim_output_dir/merged_output_file_name)
-        
-            # convert the snapshots and save a single npz file, they are in the input folder
-            convert_snapshots_to_np(tmp_dir, sim_output_dir / "snapshots", True, (3, 3))
-            # delete the empty snapshot directories created by gprMax in the input folder
-            dirs = input_dir.glob(f"{f.stem}_snaps*")
-            for d in dirs:
-                d.rmdir()
-        
-        # convert output geometry in numpy format and discard initial files
-        h5_file_name = output_files_basename + "_geometry.h5"
-        convert_geometry_to_np(tmp_dir/h5_file_name, (sim_output_dir/h5_file_name).with_suffix(".npy"), remove_files=True)
+            # run sims
+            with _redirect_stdout(logfile):
+                gprmax_run(str(f), n_ascans, geometry_fixed=False, geometry_only=geometry_only, gpu=gpu)
+
+            # merge output A-scans
+            if not geometry_only:
+                merged_output_file_name = output_files_basename + "_merged.out"
+                if n_ascans > 1:
+                    merge_files(str(tmp_dir/ output_files_basename), removefiles=True)
+                    (tmp_dir/merged_output_file_name).rename(sim_output_dir/merged_output_file_name)
+                elif n_ascans == 1:
+                    (tmp_dir/(output_files_basename + ".out")).rename(sim_output_dir/merged_output_file_name)
+            
+                # convert the snapshots and save a single npz file, they are in the input folder
+                convert_snapshots_to_np(tmp_dir, sim_output_dir / "snapshots", True, (3, 3))
+                # delete the empty snapshot directories created by gprMax in the input folder
+                dirs = input_dir.glob(f"{f.stem}_snaps*")
+                for d in dirs:
+                    d.rmdir()
+            
+            # convert output geometry in numpy format and discard initial files
+            h5_file_name = output_files_basename + "_geometry.h5"
+            convert_geometry_to_np(tmp_dir/h5_file_name, (sim_output_dir/h5_file_name).with_suffix(".npy"), remove_files=True)
 
 
 
 
 if __name__ == "__main__":
     args = _parse_arguments()
+
 
     config = vars(args)
 
@@ -246,4 +253,4 @@ if __name__ == "__main__":
                         geometry_only=config.geometry_only, 
                         gpu=gpu_available)
 
-    print(f"Completed all tasks in {time.time() - t} seconds.")
+    print(f"Done in {time.time() - t} seconds.")
