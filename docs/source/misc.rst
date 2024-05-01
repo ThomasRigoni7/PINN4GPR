@@ -1,7 +1,7 @@
 misc module
 ==========================
 
-.. automodule:: visualization.misc
+.. automodule:: src.visualization.misc
    :members:
    :undoc-members:
    :show-inheritance:

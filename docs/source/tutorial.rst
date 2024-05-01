@@ -47,6 +47,8 @@ The values from this file are automatically parsed using `pydantic <https://docs
       - The number of samples to generate. These are automatically named ``scan_0000``, ``scan_0001`` and so on.
     * - n_ascans
       - The number of A-scans to create per sample.
+    * - seed
+      - The random number generator seed used in dataset generation. The full dataset is deterministic based on this value.
     * - generate_input
       - If set, generate input files in ``input_dir``
     * - run_simulations
@@ -91,15 +93,29 @@ The values from this file are automatically parsed using `pydantic <https://docs
       - Ranges for the size of all the layers in the simulation.
     * - layer_roughness
       - Maximum randomly sampled vertical roughness (deviation) of the layers from their calculated size.
+    * - layer_sizes_beta_params
+      - Beta distribution parameters for the layer size sampling.
     * - sleepers_separation
       - Horizontal distance between two consecutive sleepers. Constant in each sample.
     * - sleepers_material_probabilities
       - Set probabilities of each sleeper material in the random sampling.
     * - sleepers_sizes: 
       - Size of each sleeper given their material.
+    * - fouling_beta_params:
+      - Beta distribution parameters for the fouling sampling.
     * - fouling_box_threshold
       - Set threshold in the random sampling to add a fouling box behind the ballast stones.
+    * - general_water_content_beta_params
+      - Beta distribution parameters for the general water content sampling.
+    * - water_infiltration_sampling_std
+      - standard deviation of the gaussian distribution used for sampling if water infiltration occurs, with mean on the general water content.
     * - water_infiltration_threshold
       - Set threshold in the random sampling to add water infiltrations between layers.
+    * - layer_water_sampling_std
+      - standard deviation of the gaussian distribution used for sampling layer humidity, with mean on the general water content.
+    * - general_deterioration_beta_params
+      - Beta distribution parameters for the general deterioration sampling of PSS and subsoil.
     * - snapshot_times
       - times at which to generate snapshots of the electric and magnetic fields for each A-scan.
+    * - create_views
+      - flag for geometry view files creation, which can be opened with Paraview. gprMax creates one view file per A-scan, so the flag is set to False for the B-scan dataset.

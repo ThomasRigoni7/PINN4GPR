@@ -9,7 +9,6 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../../src"))
 sys.path.insert(0, os.path.abspath("../../"))
 
 
@@ -55,8 +54,8 @@ autodoc_default_options = {
     'exclude-members': "model_config, model_fields"
 }
 numpydoc_show_inherited_class_members = {
-    "dataset_creation.configuration.GprMaxConfig": False,
-    "dataset_creation.statistics.Metadata": False
+    "src.dataset_creation.configuration.GprMaxConfig": False,
+    "src.dataset_creation.statistics.Metadata": False
 }
 
 html_theme_options = {

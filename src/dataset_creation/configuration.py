@@ -63,3 +63,5 @@ class GprMaxConfig(BaseModel):  # numpydoc ignore=PR01
     # Snapshots
     snapshot_times: list[float]
 
+    create_views: bool
+

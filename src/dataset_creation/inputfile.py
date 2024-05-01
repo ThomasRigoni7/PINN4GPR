@@ -179,7 +179,7 @@ class InputFile():
         """
         Write to file the commands related to ballast stones and its associated fouling.
         
-        The ballast position is generated on the fly, using a pymunk simulation. See :class:`.BallastSimulation`.
+        The ballast position is generated on the fly, using a pymunk simulation. See :class:`src.dataset_creation.ballast_simulation.BallastSimulation`.
         
         Parameters
         ----------
@@ -389,16 +389,19 @@ class InputFile():
         Parameters
         ----------
         objects_dir : str | Path
-            directory in which to place the geometry objects files.
+            directory in which to place the geometry object files. Not created if None.
         view_dir : str | Path
-            directory in which to place the geometry view file.
+            directory in which to place the geometry view file. Not created if None.
         """
-        objects_dir = Path(objects_dir)
-        view_dir = Path(view_dir)
 
         self.write_line("## Save geometry")
-        self.write_command("geometry_objects_write", (0, 0, 0, self.domain[0], self.domain[1], self.domain[2], objects_dir / (self.title + "_geometry")))
-        self.write_command("#geometry_view", (0, 0, 0,
+        if objects_dir is not None:
+            objects_dir = Path(objects_dir)
+            self.write_command("geometry_objects_write", (0, 0, 0, self.domain[0], self.domain[1], self.domain[2], objects_dir / (self.title + "_geometry")))
+        
+        if view_dir is not None:
+            view_dir = Path(view_dir)
+            self.write_command("geometry_view", (0, 0, 0,
                                              self.domain[0], self.domain[1], self.domain[2], 
                                              self.spatial_resolution[0], self.spatial_resolution[1], self.spatial_resolution[2] , 
                                              view_dir / (self.title + "_view"), "n"))
@@ -708,6 +711,7 @@ class InputFile():
             self.write_line("## No snapshots\n")
 
         # SAVE GEOMETRY
-        self.write_save_geometry(config.tmp_dir, config.output_dir)
+        view_dir = config.output_dir if config.create_views else None
+        self.write_save_geometry(config.tmp_dir, view_dir)
 
         return metadata

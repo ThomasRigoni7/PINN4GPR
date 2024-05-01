@@ -4,7 +4,7 @@ pinns package
 Module contents
 ---------------
 
-.. automodule:: pinns
+.. automodule:: src.pinns
    :members:
    :undoc-members:
    :show-inheritance:
