@@ -1,10 +1,4 @@
 pinns package
 =============
 
-Module contents
----------------
-
-.. automodule:: src.pinns
-   :members:
-   :undoc-members:
-   :show-inheritance:
+.. include:: ../../src/pinns/README.rst

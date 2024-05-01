@@ -1,29 +1,17 @@
+"""
+This module contains the implementation of a combined MLP and CNN architecture, 
+which takes as input the x, y, t coordinates and the full input geometry and outputs
+the electric field at that point.
+
+I was not able to make the model predict reasonable fields, most probably due to the less than perfect feature fusion.
+"""
+
+
 import torch
 import torch.nn as nn
 from torchvision.transforms import Pad
 
-class MLP(nn.Module):
-    def __init__(self, num_inputs: int, hidden_layer_sizes: list[int], num_outputs: int, activation: nn.Module):
-        super().__init__()
-        if len(hidden_layer_sizes) < 1:
-            raise Exception("MLP needs to have at least 1 hidden layer!")
-        
-        self.activation = activation()
-        self.input_layer = nn.Linear(num_inputs, hidden_layer_sizes[0])
-        self.hidden_layers = []
-        for i in range(len(hidden_layer_sizes) - 1):
-            self.hidden_layers.append(nn.Linear(hidden_layer_sizes[i], hidden_layer_sizes[i+1]))
-        self.hidden_layers = nn.ModuleList(self.hidden_layers)
-        self.output_layer = nn.Linear(hidden_layer_sizes[-1], num_outputs)
-
-    def forward(self, x):
-        if x.ndim == 1:
-            x = x[None, :]
-        x = self.activation(self.input_layer(x))
-        for layer in self.hidden_layers:
-            x = self.activation(layer(x))
-        x = self.output_layer(x)
-        return x
+from src.pinns.models.base import  MLP
 
 class ConvBlock(nn.Module):
     def __init__(self,
@@ -72,7 +60,7 @@ class CNN(nn.Module):
         x = x.view(x.shape[0], -1)
         return self.linear(x)
 
-class PINN4GPR(nn.Module):
+class MLPWithGeometry(nn.Module):
     def __init__(self, 
                  in_shape: tuple[int, int, int] = (3, 284, 250),
                  cnn_channels: list[int] = [8, 16, 32, 16, 8],
@@ -130,61 +118,7 @@ class PINN4GPR(nn.Module):
 
         x = torch.cat([linear_embeddings, cnn_embeddings], dim=-1)
         return self.mlp(x)
-
-class UpConvBlock(nn.Module):
-    def __init__(self, in_c: int, out_c: int, activation: nn.Module):
-        super().__init__()
-
-        self.up = nn.ConvTranspose2d(in_c, out_c, kernel_size=2, stride=2, padding=0)
-        self.conv = nn.Conv2d(out_c, out_c, 3, padding=1)
-        self.bn = nn.BatchNorm2d(out_c)
-        self.activation = activation()
-
-    def forward(self, inputs):
-        x = self.up(inputs)
-
-        x = self.conv(x)
-        x = self.bn(x)
-        x = self.activation(x)
-
-        return x
-
-class UpCNN(nn.Module):   
-    def __init__(self,
-                 channels_size: list[int],
-                 activations: nn.Module):
-        super().__init__()
-
-        conv_blocks = []
-        for i in range(len(channels_size) - 1):
-            conv_blocks.append(UpConvBlock(channels_size[i], channels_size[i+1], activations))
-
-        self.conv_blocks = nn.Sequential(*conv_blocks)
-        self.regressor = nn.Conv2d(channels_size[-1], 1, 1)
-
-    def forward(self, x: torch.Tensor):
-        x = self.conv_blocks(x)
-        x = self.regressor(x)
-        return x
-
-class Time2Image(nn.Module):
-    def __init__(self, fc_layers: list[int] = [1, 64, 256, 1152], bottleneck_size = (36, 32), cnn_layers: list[int] = [1, 64, 64, 16], activations: nn.Module = nn.ReLU):
-        super().__init__()
-
-        self.bottleneck_size = bottleneck_size
-        self.mlp = MLP(1, fc_layers[1:-1], fc_layers[-1], activations)
-        self.up_cnn = UpCNN(cnn_layers, activations)
     
-    def forward(self, x: torch.Tensor):
-        x = self.mlp(x)
-
-        x = x.reshape(-1, 1, *self.bottleneck_size)
-
-        x = self.up_cnn(x)
-
-        return x
-
-
 if __name__ == "__main__":
     import numpy as np
     from skimage.measure import block_reduce
@@ -205,15 +139,7 @@ if __name__ == "__main__":
     print("inputs shape:", inputs.shape)
     print("input geom shape:", geometries.shape)
 
-    net = PINN4GPR()
+    net = MLPWithGeometry()
     out = net(inputs, geometries)
 
     print(out)
-
-    print("Time2Image:")
-    inputs = torch.tensor([[0.], [1.], [2.]])
-    print("inputs:", inputs.shape)
-
-    upnet = Time2Image()
-    out = upnet(inputs)
-    print(out.shape)

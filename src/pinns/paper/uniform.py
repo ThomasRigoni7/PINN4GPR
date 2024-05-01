@@ -6,9 +6,8 @@ import cv2
 
 from src.visualization.misc import save_field_animation
 from src.pinns.paper.dataset import MyNormalizer, PaperDataset
-from src.pinns.paper.model import MLP, IMG_SIZE, get_f, get_PINN_warmup_loss_fn, get_PINN_uniform_loss_fn, L4loss, show_predictions
+from src.pinns.paper.model import MLP, IMG_SIZE, get_f, get_PINN_warmup_loss_fn, get_PINN_loss_fn, L4loss, show_predictions
 from src.pinns.paper.train import train
-
 
 
 def uniform_material(warmup: bool):
@@ -90,7 +89,7 @@ def uniform_material(warmup: bool):
     # get the derivative functions
     f_PINN = get_f(PINN_model, scaler)
     PINN_loss_fn_L4 = get_PINN_warmup_loss_fn(L4loss)
-    PINN_loss_fn_L2 = get_PINN_uniform_loss_fn(nn.MSELoss())
+    PINN_loss_fn_L2 = get_PINN_loss_fn(nn.MSELoss(), 2e-17, False)
     regular_loss_fn = nn.MSELoss()
 
     # get f for regular model

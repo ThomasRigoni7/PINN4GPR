@@ -1,3 +1,7 @@
+"""
+This module contains the application of MLP based PINNs to the railway dataset geometry.
+"""
+
 import math
 from pathlib import Path
 
@@ -11,26 +15,27 @@ import matplotlib.pyplot as plt
 from src.pinns.paper.dataset import MyNormalizer
 
 from src.visualization.misc import save_field_animation
-from src.pinns.paper.model import MLP, get_f, get_PINN_warmup_loss_fn, show_predictions
+from src.pinns.paper.model import MLP, show_predictions, L4loss
 from src.pinns.paper.train import train_batched
 
 import src.pinns.paper.model as m
 
+scaler = None
 m.IMG_SIZE = (284, 250)
 
-RESULTS_FOLDER = Path("results/rail_sample_1ns_all_pow_tanh_small_no_warmup_weighted")
+RESULTS_FOLDER = Path("results/rail_sample_1ns_last_prova_scaled")
 IMG_SIZE = (284, 250)
 SPATIAL_DOMAIN_SIZE = ((0, 1.5), (0, 1.7))
 EPSILON_0 = 8.8541878128e-12
 MU_0 = 1.25663706212e-6
-DEVICE = "cuda:2"
+DEVICE = "cuda:1"
 LR = 0.001
 RNG = np.random.default_rng(42)
-COLLOCATION_DOMAIN_TIME_START = 20e-10
-COLLOCATION_DOMAIN_SIZE = (180e-10, 1.7, 1.5)
-EPOCHS_WARMUP = 0
-EPOCHS = 300
-BATCH_SIZE_WARMUP = 8192
+COLLOCATION_DOMAIN_TIME_START = 2e-9
+COLLOCATION_DOMAIN_SIZE = (1.8e-8, 1.7, 1.5)
+EPOCHS_WARMUP = 100
+EPOCHS = 100
+BATCH_SIZE_WARMUP = 512
 BATCH_SIZE = 8192
 N_COLLOCATION_POINTS = 8192
 
@@ -119,7 +124,7 @@ class PowNormalizer():
         self.label_scale = self.label_scale.to(device)
 
 class PaperDataset(Dataset):
-    def __init__(self, snapshots: np.ndarray, t_offsets: list[float], scaler: PowNormalizer = None):
+    def __init__(self, snapshots: np.ndarray, t_offsets: list[float], scaler: PowNormalizer | MyNormalizer = None, scaler_class: type = PowNormalizer):
         # input array has shape [t, y, x] -> gets flattened in x -> y -> t
         self.snapshots_shape = snapshots.shape
         self.snapshots = snapshots.flatten()
@@ -131,6 +136,7 @@ class PaperDataset(Dataset):
             x *= 0.006
             y = (index // self.snapshots_shape[2]) % self.snapshots_shape[1]
             y *= 0.006
+            # y = SPATIAL_DOMAIN_SIZE[1][1] - y
             t = self.t_offsets[index // (self.snapshots_shape[1] * self.snapshots_shape[2])] * 1e-10
             u = self.snapshots[index]
             data.append((x, y, t))
@@ -141,7 +147,7 @@ class PaperDataset(Dataset):
         self.labels = torch.tensor(labels, dtype=torch.float32)
         # labels = self.scale_power(labels, 1/3)
         if scaler is None:
-            self.scaler = PowNormalizer()
+            self.scaler = scaler_class()
             self.scaler.fit(self.data, self.labels)
         else:
             self.scaler = scaler
@@ -191,6 +197,22 @@ class PaperDataset(Dataset):
         print("Label max:", self.labels.max(dim=0).values)
         print()
 
+def get_f(model: MLP, scaler:MyNormalizer):
+    def f(x: torch.Tensor, y: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+
+        x, y, t, _ = scaler.transform_(x, y, t, None)
+
+        u : torch.Tensor = model(x, y, t)
+        u.squeeze()
+
+        # add noise
+        # std = 0.001
+        # u = u + (std ** 0.5) * torch.randn(u.shape, device=DEVICE)
+
+        _, u = scaler.inverse_transform(None, u)
+        return u.squeeze()
+    return f
+
 def get_EM_values(x: torch.Tensor, y: torch.Tensor, geometry: torch.Tensor):
     """
     Returns the EM values of the point, given its coordinates and the geometry
@@ -199,6 +221,7 @@ def get_EM_values(x: torch.Tensor, y: torch.Tensor, geometry: torch.Tensor):
     percent_x = (x - SPATIAL_DOMAIN_SIZE[0][0]) / (SPATIAL_DOMAIN_SIZE[0][1] - SPATIAL_DOMAIN_SIZE[0][0])
     index_x = percent_x * (geometry.shape[2])
     percent_y = (y - SPATIAL_DOMAIN_SIZE[1][0]) / (SPATIAL_DOMAIN_SIZE[1][1] - SPATIAL_DOMAIN_SIZE[1][0])
+    percent_y = 1 - percent_y
     index_y = percent_y * (geometry.shape[1])
 
     index_x = torch.clamp(index_x, 0, geometry.shape[2] - 1)
@@ -210,8 +233,11 @@ def get_time_weights(t):
     t1 = t*1e9
     return 1 / (201.63 * torch.e**(-0.2396*(t1 + -7.759)))**(1/3)
 
-def get_PINN_uniform_loss_fn(training_points_loss_fn):
-    def loss_fn(f, x, y, t, u, _b, _c, geometry: torch.Tensor):
+def get_PINN_warmup_loss_fn(training_points_loss_fn):
+    def loss_fn(f, x, y, t, u,  
+                boundary_points: torch.Tensor,
+                collocation_points_xyt: torch.Tensor, 
+                geometry: np.ndarray):
         """
         Loss function for the network:
         
@@ -226,12 +252,42 @@ def get_PINN_uniform_loss_fn(training_points_loss_fn):
         # training points:
         train_preds = f(x, y, t)
         train_error = train_preds - u
-        time_weights = get_time_weights(t)
-        # time_weights = 1
-        train_loss = training_points_loss_fn(train_error * time_weights, torch.zeros_like(train_error))
+        _, train_error = scaler.transform(None, train_error)
+        train_loss = training_points_loss_fn(train_error, torch.zeros_like(train_error))
+        return train_loss, 0
 
-        # collocation points
+    return loss_fn
+
+def get_PINN_uniform_loss_fn(training_points_loss_fn):
+    def loss_fn(f, x, y, t, u, _b, ascan_samples, geometry: torch.Tensor):
+        """
+        Loss function for the network:
+        
+        Parameters
+        ----------
+        `x`, `y`, and `t` are the inputs to the network, `u` is the output electric field.
+        
+        `domain_size` is the time and spatial size of the domain in shape [t, y, x], in
+        where to compute the physics (collocation) loss.
+        """
+
         l = nn.MSELoss()
+        # training points:
+        train_preds = f(x, y, t)
+        # fig, ax = plt.subplots(ncols=2)
+        # from src.pinns.paper.model import show_field
+        # mappable, _, _ = show_field(u.reshape(284, 250).detach(), ax[0])
+        # plt.colorbar(mappable)
+        # _, u2 = scaler.transform(None, u.clone())
+        # mappable, _, _ = show_field(u2.reshape(284, 250).detach(), ax[1])
+        # plt.colorbar(mappable)
+        # plt.show()
+        
+        train_error = train_preds - u
+        _, train_error = scaler.transform(None, train_error)
+        # time_weights = get_time_weights(t)
+        time_weights = 1
+        train_loss = training_points_loss_fn(train_error * time_weights, torch.zeros_like(train_error))
 
         # collocation points
         collocation_points = RNG.uniform(size=(3, N_COLLOCATION_POINTS)) * np.array(COLLOCATION_DOMAIN_SIZE).reshape(3, -1)
@@ -256,7 +312,9 @@ def get_PINN_uniform_loss_fn(training_points_loss_fn):
         xc.requires_grad_()
         tc.requires_grad_()
         yc.requires_grad_()
+        # print("collocations")
         uc = f(xc, yc, tc)
+        # print("end")
 
         # Calculate first and second derivatives:
         # The derivatives need to require gradient, so we need to set create_graph.
@@ -286,10 +344,17 @@ def get_PINN_uniform_loss_fn(training_points_loss_fn):
         # mappable = ax.scatter(xc.cpu().detach().numpy(), yc.cpu().detach().numpy(), tc.cpu().detach().numpy(), s = 10, c = (term1 - term2).cpu().detach().numpy())
         # plt.colorbar(mappable)
         # plt.show()
-        collocation_loss = l(2e-20 * collocation_loss, torch.zeros_like(collocation_loss))
 
+        collocation_loss = 5e-20 * collocation_loss
+        _, collocation_loss = scaler.transform(None, collocation_loss)
 
+        collocation_loss = l(collocation_loss, torch.zeros_like(collocation_loss))
         physics_loss = collocation_loss
+
+        # xa, ya, ta, ua = ascan_samples
+        # ascan_preds = f(xa, ya, ta)
+        # ascan_error = ascan_preds - ua
+        # ascan_loss = l(ascan_error, torch.zeros_like(ascan_error))
 
         return train_loss, physics_loss
 
@@ -312,34 +377,46 @@ def debug_geometry(geometry):
     ax.plot_surface(x.numpy(), y.numpy(), z.numpy())
     plt.show()
 
+def get_ascan_samples(data_path: Path | str, time_window_ns: tuple[float, float]):
+    from tools.outputfiles_merge import get_output_data
+    data, dt = get_output_data(str(data_path), 1, "Ez")
+
+    points = []
+    for i, d in enumerate(data):
+        t = dt * i
+        if t >= time_window_ns[0]*1e-9 and t <= time_window_ns[1]*1e-9:
+            points.append((0.85, 1.50, t, d))
+    
+    points = torch.as_tensor(points, dtype=torch.float32).to(DEVICE)
+    print(points.shape)
+    return points.T
+
+
 def rail_sample():
 
     (RESULTS_FOLDER / "warmup").mkdir(exist_ok=True, parents=True)
 
     snapshots = np.load("munnezza/output/scan_00000/snapshots.npz")["00000_E"]
     geometry = np.load("munnezza/output/scan_00000/scan_00000_geometry.npy")
-
-    # snapshots = np.load("munnezza/output/scan_00000/snapshots.npz")["00000_E"][1:]
-    # geometry = np.load("munnezza/output/scan_00000/scan_00000_geometry.npy")
-
     geometry = torch.from_numpy(geometry).to(DEVICE)
+
+    # ascan_samples = get_ascan_samples("munnezza/output/scan_00000/scan_00000_merged.out", (7., 10.))
 
     # plt.imshow(geometry[1].cpu())
     # plt.show()
 
     # geometry = geometry.cpu()
-    # EM_values = get_EM_values(torch.Tensor([0., 0., 1.45, 1.45]), torch.tensor([0., 1.6, 0., 1.6]), geometry)
+    # EM_values = get_EM_values(torch.Tensor([0.85]), torch.tensor([1.5]), geometry)
     # print(EM_values)
     # debug_geometry(geometry)
 
-
     # define models and optimizers
-    PINN_model = MLP(3, [128]*5, 1, nn.Tanh)
-    # PINN_model.load_state_dict(torch.load("results/rail_sample_02ns_all_pow/NN_model_best.ckp"))
+    PINN_model = MLP(3, [256]*5, 1, nn.SiLU)
+    # PINN_model.load_state_dict(torch.load("results/rail_sample_1ns_all/PINN_model_best_warmup.ckp"))
     PINN_model = PINN_model.to(DEVICE)
 
-    regular_model = MLP(3, [128]*5, 1, nn.ReLU)
-    # regular_model.load_state_dict(torch.load("results/rail_sample_05ns/NN_model_best_warmup.ckp"))
+    regular_model = MLP(3, [256]*5, 1, nn.ReLU)
+    # regular_model.load_state_dict(torch.load(RESULTS_FOLDER / "NN_model_best_warmup.ckp"))
     regular_model = regular_model.to(DEVICE)
 
     PINN_optimizer = torch.optim.Adam(PINN_model.parameters(), lr = LR)
@@ -347,31 +424,42 @@ def rail_sample():
 
 
     # Create the dataset
-    train_indexes = list(range(20, len(snapshots), 10))
+    train_indexes = list(range(20, 199, 10))
+    # train_indexes = [100]
     print(train_indexes)
     train_dataset = PaperDataset(snapshots[train_indexes], t_offsets=train_indexes)
     print("Train dataset points:")
     train_dataset.print_info()
-    save_field_animation(train_dataset.snapshots.reshape((-1, *IMG_SIZE)), None, interval=200)
+
+    
+
+    # save_field_animation(train_dataset.snapshots.reshape((-1, *IMG_SIZE)), None, interval=200)
     # frame_15ns = train_dataset.get_frame(1)
     #show_field(frame_15ns)
+    global scaler
     scaler = train_dataset.scaler
 
-    val_indexes = list(range(21, len(snapshots), 10))
-    val_dataset = PaperDataset(snapshots[val_indexes], t_offsets=val_indexes, scaler=scaler)
+    train_indexes_pretraining = list(range(30, 89, 10))
+    train_dataset_pretraining = PaperDataset(snapshots[train_indexes_pretraining], t_offsets=train_indexes_pretraining, scaler=scaler)
+
+    val_indexes = list(range(22, 199, 10))
+    # val_indexes = [100]
+    # val_dataset = PaperDataset(snapshots[val_indexes], t_offsets=val_indexes, scaler=scaler)
+    val_dataset = PaperDataset(snapshots[train_indexes], t_offsets=train_indexes, scaler=scaler)
     print("Val dataset points:")
     val_dataset.print_info()
-    save_field_animation(val_dataset.snapshots.reshape((-1, *IMG_SIZE)), None, interval=200)
+    #save_field_animation(val_dataset.snapshots.reshape((-1, *IMG_SIZE)), None, interval=200)
 
-    test_indexes = list(range(25, len(snapshots), 10))
+    test_indexes = list(range(25, 199, 10))
+    # test_indexes = [95, 105]
     test_dataset = PaperDataset(snapshots[test_indexes], t_offsets=test_indexes, scaler=scaler)
     print("Test dataset points:")
     test_dataset.print_info()
-    save_field_animation(test_dataset.snapshots.reshape((-1, *IMG_SIZE)), None, interval=200)
+    # save_field_animation(test_dataset.snapshots.reshape((-1, *IMG_SIZE)), None, interval=200)
 
     # get the derivative functions
     f_PINN = get_f(PINN_model, scaler)
-    PINN_loss_fn_L4 = get_PINN_warmup_loss_fn(nn.MSELoss())
+    PINN_loss_fn_L4 = get_PINN_warmup_loss_fn(L4loss)
     PINN_loss_fn_L2 = get_PINN_uniform_loss_fn(nn.MSELoss())
     regular_loss_fn = nn.MSELoss()
 
@@ -385,7 +473,8 @@ def rail_sample():
     # print("max:", collocation_points.max(dim=1))
 
     # generate dataset
-    train_loader = DataLoader(train_dataset, BATCH_SIZE_WARMUP, shuffle=True, num_workers=64, persistent_workers=True)
+    train_loader = DataLoader(train_dataset, BATCH_SIZE_WARMUP, shuffle=False, num_workers=64, persistent_workers=True)
+    train_loader_pretraining = DataLoader(train_dataset_pretraining, BATCH_SIZE_WARMUP, shuffle=False, num_workers=64, persistent_workers=True)
 
     val_samples = torch.cat([val_dataset.data, val_dataset.labels[:, None]], dim=1).T.to(DEVICE)
     test_samples = torch.cat([test_dataset.data, test_dataset.labels[:, None]], dim=1).T.to(DEVICE)
@@ -398,8 +487,8 @@ def rail_sample():
                                                     regular_model,
                                                     f_regular,
                                                     regular_optimizer,
-                                                    nn.MSELoss(),
-                                                    train_loader,
+                                                    L4loss,
+                                                    train_loader_pretraining,
                                                     val_samples,
                                                     None,
                                                     None,
@@ -424,7 +513,11 @@ def rail_sample():
 
     for i, val_snapshot in enumerate(torch.split(val_samples, math.prod(IMG_SIZE), dim=1)):
         show_predictions(f_PINN, f_regular, val_snapshot, RESULTS_FOLDER / f"warmup/val_predictions_{i}.png")
-    train_loader = DataLoader(train_dataset, BATCH_SIZE, shuffle=True, num_workers=64, persistent_workers=True)
+
+    val_dataset = PaperDataset(snapshots[val_indexes], t_offsets=val_indexes, scaler=scaler)
+    val_samples = torch.cat([val_dataset.data, val_dataset.labels[:, None]], dim=1).T.to(DEVICE)
+
+    train_loader = DataLoader(train_dataset, BATCH_SIZE, shuffle=False, num_workers=64, persistent_workers=True)
 
     best_PINN_model, last_PINN_model, best_regular_model, last_regular_model = train_batched(best_PINN_model,
                                                 f_PINN,
@@ -441,9 +534,9 @@ def rail_sample():
                                                 geometry,
                                                 EPOCHS,
                                                 DEVICE,
-                                                use_scheduler=True,
+                                                use_scheduler=False,
                                                 results_folder=RESULTS_FOLDER,
-                                                interactive=True)
+                                                interactive=False)
 
     torch.save(best_PINN_model.state_dict(), RESULTS_FOLDER / "PINN_model_best.ckp")
     torch.save(best_regular_model.state_dict(), RESULTS_FOLDER / "NN_model_best.ckp")
@@ -451,10 +544,104 @@ def rail_sample():
     best_PINN_model = best_PINN_model.to(DEVICE)
     best_regular_model = best_regular_model.to(DEVICE)
 
+    f_PINN = get_f(best_PINN_model, scaler)
+    f_regular = get_f(best_regular_model, scaler)
+
     for i, val_snapshot in enumerate(torch.split(val_samples, math.prod(IMG_SIZE), dim=1)):
         show_predictions(f_PINN, f_regular, val_snapshot, RESULTS_FOLDER / f"val_predictions_{i}.png")
     for i, test_snapshot in enumerate(torch.split(test_samples, math.prod(IMG_SIZE), dim=1)):
         show_predictions(f_PINN, f_regular, test_snapshot, RESULTS_FOLDER / f"test_predictions_{i}.png")
+
+def rail_sample_NN():
+
+    (RESULTS_FOLDER / "warmup").mkdir(exist_ok=True, parents=True)
+
+    snapshots = np.load("munnezza/output/scan_00000/snapshots.npz")["00000_E"]
+    geometry = np.load("munnezza/output/scan_00000/scan_00000_geometry.npy")
+    geometry = torch.from_numpy(geometry).to(DEVICE)
+
+    regular_model = MLP(3, [128]*5, 1, nn.ReLU)
+    regular_model = regular_model.to(DEVICE)
+
+    regular_optimizer = torch.optim.Adam(regular_model.parameters(), lr = LR)
+
+
+    # Create the dataset
+    train_indexes = list(range(70, 101, 2))
+    print(train_indexes)
+    train_dataset = PaperDataset(snapshots[train_indexes], t_offsets=train_indexes)
+    save_field_animation(train_dataset.snapshots.reshape((-1, *IMG_SIZE)), None, interval=200)
+    print("Train dataset points:")
+    train_dataset.print_info()
+    global scaler
+    scaler = train_dataset.scaler
+
+    val_indexes = list(range(70, 101, 4))
+    # val_indexes = [100]
+    val_dataset = PaperDataset(snapshots[val_indexes], t_offsets=val_indexes, scaler=scaler)
+    print("Val dataset points:")
+    val_dataset.print_info()
+    #save_field_animation(val_dataset.snapshots.reshape((-1, *IMG_SIZE)), None, interval=200)
+
+    test_indexes = list(range(71, 101, 1))
+    # test_indexes = [95, 105]
+    test_dataset = PaperDataset(snapshots[test_indexes], t_offsets=test_indexes, scaler=scaler)
+    print("Test dataset points:")
+    test_dataset.print_info()
+    save_field_animation(snapshots[test_indexes], RESULTS_FOLDER / "ground_truth.gif")
+    # save_field_animation(test_dataset.snapshots.reshape((-1, *IMG_SIZE)), None, interval=200)
+
+    # get the derivative functions
+    regular_loss_fn = nn.MSELoss()
+
+    # get f for regular model
+    f_regular = get_f(regular_model, scaler)
+
+    # generate dataset
+    train_loader = DataLoader(train_dataset, BATCH_SIZE, shuffle=True, num_workers=64, persistent_workers=True)
+
+    val_samples = torch.cat([val_dataset.data, val_dataset.labels[:, None]], dim=1).T.to(DEVICE)
+    test_samples = torch.cat([test_dataset.data, test_dataset.labels[:, None]], dim=1).T.to(DEVICE)
+
+    # train
+    train_losses = []
+    from tqdm import tqdm
+    for e in tqdm(range(EPOCHS)):
+        for b in train_loader:
+            x, y, t, u = b
+            x = x.to(DEVICE)
+            y = y.to(DEVICE)
+            t = t.to(DEVICE)
+            u = u.to(DEVICE)
+            regular_optimizer.zero_grad()
+            prediction = f_regular(x, y, t)
+            loss = regular_loss_fn(prediction, u)
+            train_losses.append(float(loss))
+
+            # fig, ax = plt.subplots(ncols=2)
+            # from src.pinns.paper.model import show_field
+            # mappable, _, _ = show_field(u[:8750].reshape(35, 250).detach(), ax[0])
+            # plt.colorbar(mappable)
+            # _, u2 = scaler.transform(None, u.clone())
+            # mappable, _, _ = show_field(u2[:8750].reshape(35, 250).detach(), ax[1])
+            # plt.colorbar(mappable)
+            # plt.show()
+
+            loss.backward()
+            regular_optimizer.step()
+
+    plt.semilogy(train_losses)
+    plt.savefig(RESULTS_FOLDER / "train_loss_step.png")
+
+    def fake_f_PINN(*args, **kwargs):
+        return torch.zeros(IMG_SIZE)
+
+    from src.pinns.paper.model import predict_functional
+    regular_predictions =  predict_functional(f_regular, test_samples)
+
+    regular_predictions = regular_predictions.reshape(-1, *IMG_SIZE)
+
+    save_field_animation(regular_predictions.cpu().detach().squeeze(), RESULTS_FOLDER / "predictions.gif")
 
 if __name__ == "__main__":
     rail_sample()

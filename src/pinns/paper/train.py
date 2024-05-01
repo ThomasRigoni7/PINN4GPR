@@ -1,3 +1,8 @@
+"""
+This module contains functions to train both full-data and batched models,
+in particular both a black box and PINN model are trained together on the same training data.
+"""
+
 from tqdm import tqdm
 import copy
 from typing import Callable
@@ -10,8 +15,8 @@ import matplotlib.pyplot as plt
 
 from src.pinns.paper.model import MLP, evaluate_functional
 
-LOGGING_FREQUENCY = 1
-
+LOGGING_FREQUENCY_BATCHED = 1
+LOGGING_FREQUENCY_FULL = 100
 
 def train(PINN_model: MLP, 
           f_PINN: Callable,
@@ -78,20 +83,13 @@ def train(PINN_model: MLP,
         # compute validation loss
         PINN_val_loss_evolution.append(evaluate_functional(f_PINN, val_samples, regular_loss_fn))
         regular_val_loss_evolution.append(evaluate_functional(f_regular, val_samples, regular_loss_fn))
-        if (e + 1) % LOGGING_FREQUENCY == 0:
-            print(f"End of epoch {e}:")
-            print(f"PINN train loss {PINN_train_loss_evolution[-1]}")
-            print(f"PINN val loss {PINN_val_loss_evolution[-1]}")
-            print(f"PINN physics loss {PINN_physics_loss_evolution[-1]}")
-            print(f"NN train loss {regular_loss_evolution[-1]}")
-            print(f"NN val loss {regular_val_loss_evolution[-1]}")
-
+        if (e + 1) % LOGGING_FREQUENCY_FULL == 0:
             # draw
             ax.clear()
             ax.set(title="Train loss evolution", xlabel="# step", ylabel="Loss")
-            ax.semilogy(PINN_physics_loss_evolution, label="PINN physics loss")
             ax.semilogy(regular_loss_evolution, label="NN loss")
             ax.semilogy(PINN_train_loss_evolution, label="PINN train loss")
+            ax.semilogy(PINN_physics_loss_evolution, label="PINN physics loss")
             ax.legend()
             if interactive:
                 plt.show()
@@ -118,9 +116,9 @@ def train(PINN_model: MLP,
     if results_folder is not None:
         ax.clear()
         ax.set(title="Train loss evolution", xlabel="# step", ylabel="Loss")
-        ax.semilogy(PINN_physics_loss_evolution, label="PINN physics loss")
         ax.semilogy(regular_loss_evolution, label="NN loss")
         ax.semilogy(PINN_train_loss_evolution, label="PINN train loss")
+        ax.semilogy(PINN_physics_loss_evolution, label="PINN physics loss")
         ax.legend()
         fig.savefig(results_folder / "train_loss.png")
         fig2.savefig(results_folder / "val loss.png")
@@ -154,7 +152,8 @@ def train_batched(PINN_model: MLP,
 
 
     fig, ax = plt.subplots()
-    plt.ion()
+    if interactive:
+        plt.ion()
 
 
     PINN_train_loss_step = []
@@ -234,6 +233,11 @@ def train_batched(PINN_model: MLP,
             best_PINN_model = PINN_val_loss_evolution[-1], copy.deepcopy(PINN_model).cpu()
         if best_regular_model is None or regular_val_loss_evolution[-1] < best_regular_model[0]:
             best_regular_model = regular_val_loss_evolution[-1], copy.deepcopy(regular_model).cpu()
+
+        print()
+        print("Train loss: ", PINN_train_loss_epoch[-1])
+        print("Val loss: ", PINN_val_loss_evolution[-1])
+        print()
 
 
     plt.ioff()

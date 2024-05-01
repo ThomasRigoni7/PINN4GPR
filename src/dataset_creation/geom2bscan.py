@@ -1,3 +1,11 @@
+"""
+This module contains code to:
+
+1) Train a CNN-based black box neural network model to approximate the B-scan response from a given dataset.
+
+2) Use a trained model to quickly compute B-scan predictions from a (possibly) geometry-only dataset.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
@@ -7,9 +15,7 @@ import os
 
 from sklearn.model_selection import train_test_split
 from pathlib import Path
-from tools.plot_Bscan import get_output_data
 from tqdm import tqdm
-import cv2
 
 def _parse_arguments():
     """
@@ -50,7 +56,7 @@ def load_dataset(dataset_output_path: str | Path = Path("dataset_bscan/gprmax_ou
     ----------
     dataset_output_path : str | Path, optional
         location of the output folder of the dataset, by default Path("dataset_bscan/gprmax_output_files")
-    indexes_interval: tuple[int, int] | None
+    indexes_interval : tuple[int, int] | None
         If specified, the interval of indexes to load, upper limit excluded. Default : None.
         
     Returns
@@ -101,6 +107,23 @@ def load_dataset(dataset_output_path: str | Path = Path("dataset_bscan/gprmax_ou
     return geometries, bscans
 
 def split_dataset(geometries: np.ndarray, bscans: np.ndarray, random_state: int = 42):
+    """
+    Splits the dataset into train and test set.
+
+    Parameters
+    ----------
+    geometries : np.ndarray
+        dataset geometries (input data)
+    bscans : np.ndarray
+        dataset bscans (labels)
+    random_state : int, optional
+        seed for the dataset split, by default 42
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+        train data, test data, train labels, test labels.
+    """
 
     train_data, test_data, train_labels, test_labels = train_test_split(geometries, bscans, random_state=random_state)
 
@@ -119,8 +142,7 @@ def filter_PML_bug_bscans(geometries: np.ndarray, bscans: np.ndarray, upper_limi
     bscans : np.ndarray of shape [B, H, W]
         sample bscans
     upper_limit : float, optional
-        the upper limit threshold. A value of 1.4e6 has been empirically found to divide the dataset in a clean way. 
-        See :mod:`src.tests.dataset_creation`.
+        the upper limit threshold. A value of 1.4e6 has been empirically found to divide the dataset in a clean way.
 
     Returns
     -------
@@ -181,42 +203,49 @@ def filter_initial_wave(train_labels: np.ndarray, test_labels: np.ndarray):
 
     return train_labels, test_labels, median
 
+def build_network():
+    """
+    Builds a geom2bscan keras model
 
-# Build model
-def cross_attention(x1, x2, filters, h=8):
-    v1 = keras.layers.Conv2D(filters, (1,1), padding='same', strides=1)(x1) 
-    q2 = keras.layers.Conv2D(filters, (1,1), padding='same', strides=1)(x2)
-    a1 = keras.layers.MultiHeadAttention(num_heads=h, key_dim=filters//h)(q2, v1)
-    o1 = keras.layers.LayerNormalization()(a1 + v1)
-    out1 = keras.layers.LayerNormalization()(o1 + keras.layers.Conv2D(filters, (1,1), padding='same', strides=1)(o1))
-    return out1
+    Returns
+    -------
+    tf.keras.Model
+        the geom2bscan keras model
+    """
 
-def down_block(x, filters, kernel_size=(3,3), padding='same', strides=1):
-    c = keras.layers.Conv2D(filters, kernel_size, padding=padding, strides=strides)(x)
-    c = keras.layers.Activation('relu')(c)
-    c = keras.layers.Conv2D(filters, kernel_size, padding=padding, strides=strides)(c)
-    c = keras.layers.Activation('relu')(c)
-    p = keras.layers.MaxPool2D((2, 2), (2, 2))(c)
-    return p
+    # Build model
+    def cross_attention(x1, x2, filters, h=8):
+        v1 = keras.layers.Conv2D(filters, (1,1), padding='same', strides=1)(x1) 
+        q2 = keras.layers.Conv2D(filters, (1,1), padding='same', strides=1)(x2)
+        a1 = keras.layers.MultiHeadAttention(num_heads=h, key_dim=filters//h)(q2, v1)
+        o1 = keras.layers.LayerNormalization()(a1 + v1)
+        out1 = keras.layers.LayerNormalization()(o1 + keras.layers.Conv2D(filters, (1,1), padding='same', strides=1)(o1))
+        return out1
 
-def connect_block(x, filters, kernel_size=(3,3)):
-    c = keras.layers.Conv2D(filters, kernel_size, padding='same', strides=(3,3))(x)
-    c = keras.layers.Activation('relu')(c)
-    c = keras.layers.Conv2DTranspose(filters, kernel_size, padding='valid', strides=1)(c)
-    c = keras.layers.Activation('relu')(c)
-    c = keras.layers.Conv2D(filters, kernel_size, padding='same', strides=1)(c)
-    c = keras.layers.Activation('relu')(c)
-    return c
+    def down_block(x, filters, kernel_size=(3,3), padding='same', strides=1):
+        c = keras.layers.Conv2D(filters, kernel_size, padding=padding, strides=strides)(x)
+        c = keras.layers.Activation('relu')(c)
+        c = keras.layers.Conv2D(filters, kernel_size, padding=padding, strides=strides)(c)
+        c = keras.layers.Activation('relu')(c)
+        p = keras.layers.MaxPool2D((2, 2), (2, 2))(c)
+        return p
 
-def up_block(x, filters, kernel_size=(3,3), padding='same', strides=1):
-    us_x = keras.layers.UpSampling2D((2, 2))(x)
-    c = keras.layers.Conv2D(filters, kernel_size, padding=padding, strides=strides)(us_x)
-    c = keras.layers.Activation('relu')(c)
-    c = keras.layers.Conv2D(filters, kernel_size, padding=padding, strides=strides)(c)
-    c = keras.layers.Activation('relu')(c)
-    return c
+    def connect_block(x, filters, kernel_size=(3,3)):
+        c = keras.layers.Conv2D(filters, kernel_size, padding='same', strides=(3,3))(x)
+        c = keras.layers.Activation('relu')(c)
+        c = keras.layers.Conv2DTranspose(filters, kernel_size, padding='valid', strides=1)(c)
+        c = keras.layers.Activation('relu')(c)
+        c = keras.layers.Conv2D(filters, kernel_size, padding='same', strides=1)(c)
+        c = keras.layers.Activation('relu')(c)
+        return c
 
-def network():
+    def up_block(x, filters, kernel_size=(3,3), padding='same', strides=1):
+        us_x = keras.layers.UpSampling2D((2, 2))(x)
+        c = keras.layers.Conv2D(filters, kernel_size, padding=padding, strides=strides)(us_x)
+        c = keras.layers.Activation('relu')(c)
+        c = keras.layers.Conv2D(filters, kernel_size, padding=padding, strides=strides)(c)
+        c = keras.layers.Activation('relu')(c)
+        return c
 
     data_sizeX = 750
     data_sizeY = 850
@@ -263,13 +292,24 @@ def network():
 
     return model
 
-def get_lr_metric(optimizer):
-    def learning_rate(y_true, y_pred):
-        return optimizer.learning_rate
-    return learning_rate
 
 def train(dataset_output_path:str | Path, output_path: str | Path):
+    """
+    Trains a geom2bscan model with the (labelled) data in the dataset.
 
+    Parameters
+    ----------
+    dataset_output_path : str | Path
+        dataset output folder.
+    output_path : str | Path
+        Directory in which all training results will be saved.
+    """
+
+    def get_lr_metric(optimizer):
+        def learning_rate(y_true, y_pred):
+            return optimizer.learning_rate
+        return learning_rate
+    
     output_path = Path(output_path)
 
     geometries, bscans = load_dataset(dataset_output_path)
@@ -285,7 +325,7 @@ def train(dataset_output_path:str | Path, output_path: str | Path):
     test_data2 = np.expand_dims(test_data[:, :, :, 1], -1)
     test_mask = test_labels
 
-    model = network()
+    model = build_network()
     model.summary()
 
     # Training
@@ -410,24 +450,24 @@ def predict(dataset_output_path: str | Path, model_checkpoint_path: str | Path, 
         Path to the keras model checkpoint to use for prediction.
     output_dir : str | Path
         Directory in which the predictions will be stored.
-    label_mask_path: str | Path | None
+    label_mask_path : str | Path | None
         Path to the label median mask used for preprocessing labels during training. 
         This will be added to the predictions to obtain the output B-scan.
         If None, no postprocessing is done.
-    memory_batch_size: int | None
+    memory_batch_size : int | None
         Size of the sample batches loaded into memory for each predictions cycle.
         If None, the full dataset is loaded into memory.
         
     Returns
     -------
-    np.ndarray of shape [num_scans, height, width] if memory_batchsize is None, else None.
-        predictions
+    np.ndarray | None
+        predictions, only if memory_batch_size is None.
     """
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    model = network()
+    model = build_network()
     model.load_weights(model_checkpoint_path)
 
     mask = None
@@ -456,6 +496,9 @@ if __name__ == "__main__":
 
     import tensorflow as tf
     import keras
+    from tools.plot_Bscan import get_output_data
+    import cv2
+
 
     if args.action == "train":
         train(args.output_dir)

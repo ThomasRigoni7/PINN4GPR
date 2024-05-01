@@ -1,3 +1,7 @@
+"""
+This module defines dataset classes that can be used to load and filter the generated datasets. 
+"""
+
 from pathlib import Path
 import pickle
 from typing import Callable
@@ -133,7 +137,7 @@ class GPRDataset(ABC, Dataset):
     @abstractmethod
     def __getitem__(self, index): pass
 
-class InMemoryDataset(GPRDataset):
+class InMemoryPixelDataset(GPRDataset):
     def __init__(self, samples_dict: list[dict[str, Path]]):
         super().__init__(samples_dict)
         
@@ -186,7 +190,7 @@ class InMemoryDataset(GPRDataset):
 
         return x.squeeze(), y.squeeze(), t, u, n_index
 
-class StorageDataset(GPRDataset):
+class StoragePixelDataset(GPRDataset):
     def __init__(self, samples_dict: list[dict[str, Path]], snapshot_shapes = [24, 284, 250]):
         super().__init__(samples_dict)
         self.snapshot_shapes = snapshot_shapes
@@ -245,13 +249,13 @@ if __name__ == "__main__":
 
     train_paths = creator.get_splits_paths()[0]
 
-    dataset = InMemoryDataset(train_paths[:100])
+    dataset = InMemoryPixelDataset(train_paths[:100])
     # dataset = StorageDataset(train_paths[:100])
 
     loader = DataLoader(dataset, batch_size = 8192, num_workers=64)
 
-    from src.pinns.models import PINN4GPR
-    model = PINN4GPR().to(DEVICE)
+    from src.pinns.models import MLPWithGeometry
+    model = MLPWithGeometry().to(DEVICE)
     # 
     geometry_embeddings = torch.randn((100, 128)).to(DEVICE)
 
