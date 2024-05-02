@@ -18,11 +18,12 @@ for the `gprMax <https://www.gprmax.com/>`_ software in the railway track domain
    tutorial
 
 .. toctree:: 
-   :maxdepth: 3
+   :maxdepth: 2
    :caption: API reference
 
    dataset_creation
    pinns
+   tests
    visualization
 
 

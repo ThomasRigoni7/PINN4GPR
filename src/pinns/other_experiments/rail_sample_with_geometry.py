@@ -9,7 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 import matplotlib.pyplot as plt
 from skimage.measure import block_reduce
 
-from src.visualization.misc import save_field_animation
+from src.visualization.field import save_field_animation
 from src.pinns.paper.model import get_PINN_warmup_loss_fn, show_predictions, L4loss
 from src.pinns.paper.train import train_batched
 from models import MLPWithGeometry

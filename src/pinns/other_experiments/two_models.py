@@ -18,7 +18,7 @@ import cv2
 
 
 import matplotlib.pyplot as plt
-from src.visualization.misc import save_field_animation
+from src.visualization.field import save_field_animation
 from src.pinns.paper.dataset import MyNormalizer
 from src.pinns.paper.model import IMG_SIZE, get_EM_values, show_field
 

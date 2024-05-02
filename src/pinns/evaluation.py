@@ -27,7 +27,7 @@ def get_ground_truth(loader: DataLoader):
     
     return torch.cat(gt)
 
-from src.visualization.misc import save_field_animation
+from src.visualization.field import save_field_animation
 
 def show_predictions_loader(f_PINN: Callable, f_regular: Callable, loader: torch.Tensor, device: str, img_size : tuple, save_path: str | Path = None):
     # show predictions of the field for NN and PINN

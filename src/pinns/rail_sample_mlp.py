@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 from src.pinns.paper.dataset import MyNormalizer
 
-from src.visualization.misc import save_field_animation
+from src.visualization.field import save_field_animation
 from src.pinns.paper.model import MLP, show_predictions, L4loss
 from src.pinns.paper.train import train_batched
 

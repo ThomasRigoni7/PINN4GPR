@@ -6,7 +6,7 @@ from skimage.measure import block_reduce
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from src.visualization.misc import save_field_animation
+from src.visualization.field import save_field_animation
 from src.pinns.models import RecurrentCNN, HiddenStateRecurrentCNN
 
 DEVICE = "cuda:3"

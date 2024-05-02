@@ -11,7 +11,7 @@ from typing import Callable
 from kornia.filters import spatial_gradient, gaussian_blur2d
 from skimage.measure import block_reduce
 
-from src.visualization.misc import save_field_animation
+from src.visualization.field import save_field_animation
 from src.pinns.models import Time2Image
 
 import matplotlib.pyplot as plt

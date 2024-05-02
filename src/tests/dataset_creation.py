@@ -3,10 +3,13 @@ from difflib import unified_diff
 import matplotlib.pyplot as plt
 from pathlib import Path
 import numpy as np
+from tools.plot_Bscan import get_output_data
+from tqdm import tqdm
+import cv2
 
-from ..dataset_creation.create_dataset import create_gprmax_input_files, run_simulations, _resolve_directories
-from ..dataset_creation.inputfile import InputFile
-from ..dataset_creation.configuration import GprMaxConfig
+from src.dataset_creation.create_dataset import create_gprmax_input_files, run_simulations, _resolve_directories
+from src.dataset_creation.inputfile import InputFile
+from src.dataset_creation.configuration import GprMaxConfig
 
 
 def test_inputfile_deterministic(delete_files:bool = True):
@@ -70,8 +73,31 @@ def test_inputfile_construction():
         plt.show()
 
     
+def test_bscan_pml_bug(dataset_location: str | Path):
+    dataset_location = Path(dataset_location)
+    output_folder = dataset_location / "gprmax_output_files"
+    print("Loading dataset...")
+    bugs_count = 0
+    vals = []
+    for i in tqdm(range(900)):
+        bscan_path = output_folder / f"scan_{str(i).zfill(5)}" / f"scan_{str(i).zfill(5)}_merged.out"
+        bscan, dt = get_output_data(bscan_path, 1, "Ez")
+        bscan = cv2.resize(bscan, (192, 224))
+        val = np.abs(bscan).sum()
+        vals.append(val)
+        if val > 1.4e6:
+            bugs_count += 1
+    
+    counts, edges, bars = plt.hist(vals)
+    plt.bar_label(bars)
+    plt.xlabel("sum of abs value")
+    plt.ylabel("count")
+    plt.show()
 
+    print("BUGS COUNT:", bugs_count)
+    print("total bscans:", 900)
 
 if __name__ == "__main__":
-    test_inputfile_deterministic()
-    test_inputfile_construction()
+    # test_inputfile_deterministic()
+    # test_inputfile_construction()
+    test_bscan_pml_bug("dataset_bscan")

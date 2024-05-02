@@ -8,7 +8,7 @@ import cv2
 from torch.utils.data import DataLoader
 
 import matplotlib.pyplot as plt
-from src.visualization.misc import save_field_animation
+from src.visualization.field import save_field_animation
 from src.pinns.paper.dataset import MyNormalizer, PaperDataset
 from src.pinns.paper.model import MLP, IMG_SIZE, get_f, get_PINN_warmup_loss_fn, show_predictions, get_EM_values
 from src.pinns.paper.train import train_batched
