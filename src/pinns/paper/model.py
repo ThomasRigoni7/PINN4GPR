@@ -1,3 +1,8 @@
+"""
+This module contains implementations for the MLP PINN model and losses, 
+together with utility functions for prediction and visualization
+"""
+
 from typing import Callable
 from pathlib import Path
 
@@ -102,7 +107,7 @@ def get_PINN_warmup_loss_fn(training_points_loss_fn):
 
     return loss_fn
 
-def get_PINN_uniform_loss_fn(training_points_loss_fn):
+def get_PINN_loss_fn(training_points_loss_fn, lambda_p, use_boundary_loss):
     def loss_fn(f, x, y, t, u,  
                 boundary_points: torch.Tensor,
                 collocation_points_xyt: torch.Tensor, 
@@ -152,122 +157,31 @@ def get_PINN_uniform_loss_fn(training_points_loss_fn):
 
         # collocation_loss = dftt - (1/(epsilon*mu)) * (dfxx + dfyy) + dft * sigma / epsilon
         collocation_loss = term1 - term2 + term3
-        collocation_loss = l(2e-17 * collocation_loss, torch.zeros_like(collocation_loss))
+        collocation_loss = l(lambda_p * collocation_loss, torch.zeros_like(collocation_loss))
 
-        physics_loss = collocation_loss
-
-        return train_loss, physics_loss
-
-    return loss_fn
-
-def get_PINN_loss_fn(training_points_loss_fn):
-    def loss_fn(f, x, y, t, u,  
-                boundary_points: torch.Tensor,
-                collocation_points_xyt: torch.Tensor, 
-                geometry: np.ndarray):
-        """
-        Loss function for the network:
-        
-        Parameters
-        ----------
-        `x`, `y`, and `t` are the inputs to the network, `u` is the output electric field.
-        
-        `domain_size` is the time and spatial size of the domain in shape [t, y, x], in
-        where to compute the physics (collocation) loss.
-        """
-
-        # training points:
-        train_preds = f(x, y, t)
-        train_loss = training_points_loss_fn(train_preds, u)
-
-        l = nn.MSELoss()
-        # # boundary conditions:
-        # boundary_points_xmin = boundary_points[0]
-        # boundary_points_ymin = boundary_points[1]
-        # boundary_points_xmax = boundary_points[2]
-        # boundary_points_ymax = boundary_points[3]
-        
-
-        # free-surface: favours a reflection at the position it is calculated
-        # lapl(f(x, y=0, t)) = 0
-        # xb, yb, tb = boundary_points
-
-        # # split each point into 2, one in each medium
-        # yb0 = yb - 0.001
-        # yb1 = yb + 0.001
-
-        # epsilon_r0, _, mu_r0, _ = get_EM_values(xb, yb0, geometry)
-        # epsilon_r1, _, mu_r1, _ = get_EM_values(xb, yb1, geometry)
-
-        # # calculate the speed of the EM waves in the two mediums
-        # v0 = torch.sqrt(1 / (epsilon_r0 * EPSILON_0 * mu_r0* MU_0))
-        # v1 = torch.sqrt(1 / (epsilon_r1 * EPSILON_0 * mu_r1* MU_0))
-
-        # speed_factor = v0 / v1
-
-
-        # xb.requires_grad_()
-        # yb0.requires_grad_()
-        # yb1.requires_grad_()
-        # tb.requires_grad_()
-        # ub0 = f(xb, yb0, tb)
-        # ub1 = f(xb, yb1, tb)
-        # # dft0 = torch.autograd.grad(ub0, tb, torch.ones_like(ub0), create_graph=True)[0]
-        # # dft1 = torch.autograd.grad(ub1, tb, torch.ones_like(ub1), create_graph=True)[0]
-        # boundary_loss_field = ub0 - ub1
-        # # boundary_loss_derivative = 1e-10 * (dft0 - dft1)
-        # # boundary_loss = l(boundary_loss_field, torch.zeros_like(boundary_loss_field)) + \
-        # #     l(boundary_loss_derivative, torch.zeros_like(boundary_loss_derivative))
-        # boundary_loss = l(boundary_loss_field, torch.zeros_like(boundary_loss_field))
         boundary_loss = 0
+        if use_boundary_loss:
+            xb, yb, tb = boundary_points
 
-        # collocation points:
-        # d2f_dt2 - 1/(mu*eps) * (d2f_dx2 + d2f_dy2) + (sigma/epsilon)*df_dt = 0
-        xc, yc, tc = collocation_points_xyt
-        EM_values = get_EM_values(xc, yc, geometry)
-        epsilon, sigma, mu, _ = EM_values
+            # split each point into 2, one in each medium
+            yb0 = yb - 0.001
+            yb1 = yb + 0.001
 
-        epsilon *= EPSILON_0
-        mu *= MU_0
+            xb.requires_grad_()
+            yb0.requires_grad_()
+            yb1.requires_grad_()
+            tb.requires_grad_()
+            ub0 = f(xb, yb0, tb)
+            ub1 = f(xb, yb1, tb)
+            boundary_loss_field = ub0 - ub1
+            boundary_loss = l(boundary_loss_field, torch.zeros_like(boundary_loss_field))
 
-
-        xc.requires_grad_()
-        tc.requires_grad_()
-        yc.requires_grad_()
-        uc = f(xc, yc, tc)
-
-        # Calculate first and second derivatives:
-        # The derivatives need to require gradient, so we need to set create_graph.
-        # For some reason, 'retain_graph' is not ok for the second derivatives and makes the network diverge
-        dfx = torch.autograd.grad(uc, xc, torch.ones_like(uc), create_graph=True)[0]
-        dfy = torch.autograd.grad(uc, yc, torch.ones_like(uc), create_graph=True)[0]
-        dft = torch.autograd.grad(uc, tc, torch.ones_like(uc), create_graph=True)[0]
-        dftt = torch.autograd.grad(dft, tc, torch.ones_like(dft), create_graph=True)[0]
-        dfxx = torch.autograd.grad(dfx, xc, torch.ones_like(dfx), create_graph=True)[0]
-        dfyy = torch.autograd.grad(dfy, yc, torch.ones_like(dfy), create_graph=True)[0]
-
-        term1 = dftt
-        term2 = -(1/(epsilon*mu)) * (dfxx + dfyy)
-        term3 = dft * sigma / epsilon
-
-        # print("term1:", term1)
-        # print("term2:", term2)
-        # print("term3:", term3)
-
-
-        # collocation_loss = dftt - (1/(epsilon*mu)) * (dfxx + dfyy) + dft * sigma / epsilon
-        collocation_loss = term1 + term2 + term3
-        collocation_loss = l(2e-18 * collocation_loss, torch.zeros_like(collocation_loss))
-
-
-        # physics_loss = l(physics_loss, torch.zeros_like(physics_loss)) + l(boundary_loss, torch.zeros_like(boundary_loss))
-        # print("boundary loss:", boundary_loss)
-        # print("collocation loss:", collocation_loss)
         physics_loss = collocation_loss + boundary_loss
 
         return train_loss, physics_loss
 
     return loss_fn
+
 
 def predict(model: MLP, samples: torch.Tensor):
     model.eval()
@@ -300,8 +214,8 @@ def evaluate(model: MLP, samples: torch.Tensor, regular_loss_fn):
 def show_field(img: torch.Tensor, ax: Axes = None, vmin=None, vmax=None):
     if isinstance(img, torch.Tensor):
         img = img.cpu().numpy()
-    if img.shape != IMG_SIZE:
-        img = img.reshape(IMG_SIZE)
+    # if img.shape != IMG_SIZE:
+    #     img = img.reshape(IMG_SIZE)
     if ax is not None:
         mappable = ax.imshow(img, vmin=vmin, vmax=vmax)
         imgs = ax.get_images()
@@ -325,7 +239,7 @@ def show_predictions(f_PINN: Callable, f_regular: Callable, samples: torch.Tenso
     show_field(regular_predictions, axs[0][0], vmin, vmax)
     axs[0][0].set_title("NN predictions")
     show_field(PINN_predictions, axs[0][2], vmin, vmax)
-    axs[0][2].set_title("PINN_predictions")
+    axs[0][2].set_title("PINN predictions")
     show_field(regular_predictions - ground_truth, axs[1][0], vmin, vmax)
     axs[1][0].set_title("NN - GT")
     show_field(regular_predictions - PINN_predictions, axs[1][1], vmin, vmax)

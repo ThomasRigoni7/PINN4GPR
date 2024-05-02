@@ -1,7 +1,7 @@
 initial\_comparison module
 ==========================
 
-.. automodule:: visualization.initial_comparison
+.. automodule:: src.visualization.initial_comparison
    :members:
    :undoc-members:
    :show-inheritance:

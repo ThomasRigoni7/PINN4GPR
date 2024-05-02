@@ -1,3 +1,7 @@
+"""
+This module contains implementations related to the datasets for pixel-wise MLPs
+"""
+
 import math
 
 import torch

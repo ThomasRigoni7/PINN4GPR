@@ -30,31 +30,52 @@ h5py==3.10.0
     # via -r requirements.in
 idna==3.4
     # via requests
+imageio==2.34.1
+    # via scikit-image
 imagesize==1.4.1
     # via sphinx
 jinja2==3.1.2
     # via
+    #   numpydoc
     #   readthedocs-sphinx-ext
     #   sphinx
+joblib==1.4.0
+    # via scikit-learn
 kiwisolver==1.4.5
     # via matplotlib
+lazy-loader==0.4
+    # via scikit-image
 markupsafe==2.1.3
     # via jinja2
 matplotlib==3.8.2
     # via -r requirements.in
+networkx==3.3
+    # via scikit-image
 numpy==1.26.2
     # via
     #   -r requirements.in
     #   contourpy
     #   h5py
+    #   imageio
     #   matplotlib
+    #   scikit-image
+    #   scikit-learn
+    #   scipy
+    #   tifffile
+numpydoc==1.6.0
+    # via -r requirements.in
 packaging==23.2
     # via
+    #   lazy-loader
     #   matplotlib
     #   readthedocs-sphinx-ext
+    #   scikit-image
     #   sphinx
 pillow==10.1.0
-    # via matplotlib
+    # via
+    #   imageio
+    #   matplotlib
+    #   scikit-image
 pycparser==2.21
     # via cffi
 pydantic==2.5.1
@@ -77,6 +98,14 @@ requests==2.31.0
     # via
     #   readthedocs-sphinx-ext
     #   sphinx
+scikit-image==0.22.0
+    # via -r requirements.in
+scikit-learn==1.3.2
+    # via -r requirements.in
+scipy==1.13.0
+    # via
+    #   scikit-image
+    #   scikit-learn
 six==1.16.0
     # via python-dateutil
 snowballstemmer==2.2.0
@@ -84,6 +113,7 @@ snowballstemmer==2.2.0
 sphinx==7.2.6
     # via
     #   -r requirements.in
+    #   numpydoc
     #   sphinx-rtd-theme
     #   sphinxcontrib-applehelp
     #   sphinxcontrib-devhelp
@@ -107,6 +137,14 @@ sphinxcontrib-qthelp==1.0.6
     # via sphinx
 sphinxcontrib-serializinghtml==1.1.9
     # via sphinx
+tabulate==0.9.0
+    # via numpydoc
+threadpoolctl==3.5.0
+    # via scikit-learn
+tifffile==2024.4.24
+    # via scikit-image
+tomli==2.0.1
+    # via numpydoc
 tqdm==4.66.1
     # via -r requirements.in
 typing-extensions==4.8.0
@@ -115,4 +153,3 @@ typing-extensions==4.8.0
     #   pydantic-core
 urllib3==2.1.0
     # via requests
-numpydoc==1.6.0

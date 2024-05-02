@@ -1,29 +1,17 @@
+"""
+This module contains the implementation of a combined MLP and CNN architecture, 
+which takes as input the x, y, t coordinates and the full input geometry and outputs
+the electric field at that point.
+
+I was not able to make the model predict reasonable fields, most probably due to the less than perfect feature fusion.
+"""
+
+
 import torch
 import torch.nn as nn
 from torchvision.transforms import Pad
 
-class MLP(nn.Module):
-    def __init__(self, num_inputs: int, hidden_layer_sizes: list[int], num_outputs: int, activation: nn.Module):
-        super().__init__()
-        if len(hidden_layer_sizes) < 1:
-            raise Exception("MLP needs to have at least 1 hidden layer!")
-        
-        self.activation = activation()
-        self.input_layer = nn.Linear(num_inputs, hidden_layer_sizes[0])
-        self.hidden_layers = []
-        for i in range(len(hidden_layer_sizes) - 1):
-            self.hidden_layers.append(nn.Linear(hidden_layer_sizes[i], hidden_layer_sizes[i+1]))
-        self.hidden_layers = nn.ModuleList(self.hidden_layers)
-        self.output_layer = nn.Linear(hidden_layer_sizes[-1], num_outputs)
-
-    def forward(self, x):
-        if x.ndim == 1:
-            x = x[None, :]
-        x = self.activation(self.input_layer(x))
-        for layer in self.hidden_layers:
-            x = self.activation(layer(x))
-        x = self.output_layer(x)
-        return x
+from src.pinns.models.base import  MLP
 
 class ConvBlock(nn.Module):
     def __init__(self,
@@ -72,10 +60,11 @@ class CNN(nn.Module):
         x = x.view(x.shape[0], -1)
         return self.linear(x)
 
-class PINN4GPR(nn.Module):
+class MLPWithGeometry(nn.Module):
     def __init__(self, 
                  in_shape: tuple[int, int, int] = (3, 284, 250),
-                 cnn_channels: list[int] = [64]*4 + [16],
+                 cnn_channels: list[int] = [8, 16, 32, 16, 8],
+                 cnn_out_nodes: int = 64,
                  bottleneck_nodes: int = 128,
                  img_padding: tuple[int, int] = (3, 2), 
                  mlp_inputs: int = 3,
@@ -87,23 +76,49 @@ class PINN4GPR(nn.Module):
         self.padding = Pad(img_padding, padding_mode="reflect")
 
         padded_input_shape = (in_shape[0], in_shape[1] + 2*img_padding[1], in_shape[2] + 2*img_padding[0])
-        self.cnn = CNN(padded_input_shape, cnn_channels, bottleneck_nodes,activations)
+        self.cnn = CNN(padded_input_shape, cnn_channels, cnn_out_nodes, activations)
 
         self.input_linear = nn.Sequential(nn.Linear(mlp_inputs, bottleneck_nodes), activations())
-        self.mlp = MLP(bottleneck_nodes * 2, mlp_layer_sizes, mlp_outputs, activations)
+        self.mlp = MLP(cnn_out_nodes + bottleneck_nodes, mlp_layer_sizes, mlp_outputs, activations)
 
     def forward(self, mlp_inputs: torch.Tensor, geometry: torch.Tensor):
+        """
+        regular forward with batched mlp inputs and geometries
+        """
         padded_geometry = self.padding(geometry)
         cnn_embeddings = self.cnn(padded_geometry)
         linear_embeddings = self.input_linear(mlp_inputs)
         x = torch.cat([linear_embeddings, cnn_embeddings], dim=-1)
         return self.mlp(x)
     
-    def cnn_embedding_forward(self, mlp_inputs: torch.Tensor, geometry_embeddings: torch.Tensor):
+    def forward_cnn_embeddings(self, mlp_inputs: torch.Tensor, geometry_embeddings: torch.Tensor):
+        """
+        forward with batched mlp inputs and geometry embeddings, skips the CNN.
+        """
         linear_embeddings = self.input_linear(mlp_inputs)
         x = torch.cat([linear_embeddings, geometry_embeddings], dim=-1)
         return self.mlp(x)
+    
+    def forward_common_geometry(self, mlp_inputs: torch.Tensor, geometry: torch.Tensor):
+        """
+        forward with batched mlp inputs and single geometry: 
 
+        extracts the embeddings from the geometry and broadcasts them as input to the mlp.
+        """
+
+        assert geometry.ndim == 3, f"Common geometry must have 3 dimensions, given shape: {geometry.shape}"
+
+        padded_geometry = self.padding(geometry)
+        cnn_embeddings = self.cnn(padded_geometry.unsqueeze(0))
+        linear_embeddings = self.input_linear(mlp_inputs)
+
+        # broadcasting
+        batch_size = mlp_inputs.shape[0]
+        cnn_embeddings = torch.broadcast_to(cnn_embeddings.squeeze(), (batch_size, cnn_embeddings.shape[-1]))
+
+        x = torch.cat([linear_embeddings, cnn_embeddings], dim=-1)
+        return self.mlp(x)
+    
 if __name__ == "__main__":
     import numpy as np
     from skimage.measure import block_reduce
@@ -118,13 +133,13 @@ if __name__ == "__main__":
     print("snapshots:", snapshots.shape)
     print("Geometry:", geometry.shape)
 
+    print("PINN4GPR:")
     inputs = torch.tensor([[0., 0., 0.], [0.2, 0.2, 0.2]])
     geometries = torch.stack([geometry[:3]]*2)
-
     print("inputs shape:", inputs.shape)
     print("input geom shape:", geometries.shape)
 
-    net = PINN4GPR()
+    net = MLPWithGeometry()
     out = net(inputs, geometries)
 
     print(out)

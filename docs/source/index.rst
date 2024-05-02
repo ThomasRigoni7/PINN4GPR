@@ -6,23 +6,27 @@
 Welcome to PINN4GPR's documentation!
 ====================================
 
-This is the documentation of the PINN4GPR project, aiming to build a fast surrogate model 
-for the `gprMax <https://www.gprmax.com/>`_ software in the railway track domain, by using Physics-Informed Neural Networks (PINNs).
+This project enables you to:
+
+#. Generate Ground Penetrating Radar (GPR) datasets of realistic railway track configurations with `gprMax <https://www.gprmax.com/>`_. 
+#. Train a CNN-based surrogate model for gprMax on the generated data, which at inference time is two orders of magnitude faster than FDTD simulations.
+#. Use the surrogate model for faster large-scale dataset generation.
+#. Explore the use of physics-informed neural networks (PINNs) for the approximation of GPR wavefield data in complex railway track geometries.
 
 .. toctree::
    :maxdepth: 2
    :caption: Getting started
 
-   package_overview
    installation
    tutorial
 
 .. toctree:: 
-   :maxdepth: 3
+   :maxdepth: 2
    :caption: API reference
 
    dataset_creation
    pinns
+   tests
    visualization
 
 

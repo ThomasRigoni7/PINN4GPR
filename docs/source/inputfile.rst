@@ -1,7 +1,7 @@
 inputfile module
 ================
 
-.. automodule:: dataset_creation.inputfile
+.. automodule:: src.dataset_creation.inputfile
    :members:
    :undoc-members:
    :show-inheritance:

@@ -7,13 +7,13 @@ import torch.nn as nn
 import cv2
 
 import matplotlib.pyplot as plt
-from src.visualization.misc import save_field_animation
+from src.visualization.field import save_field_animation
 from src.pinns.paper.dataset import MyNormalizer, PaperDataset
-from src.pinns.paper.model import MLP, IMG_SIZE, get_f, get_PINN_warmup_loss_fn, get_PINN_loss_fn, L4loss, show_predictions, get_EM_values
+from src.pinns.paper.model import MLP, IMG_SIZE, get_f, get_PINN_warmup_loss_fn, get_PINN_loss_fn, L4loss, show_predictions
 from src.pinns.paper.train import train
 
 
-def two_layer():
+def two_layer(training_indexes: list[int], results_folder: str | Path, use_boundary_loss: bool):
     """
     Trains a two-layer model PINN and NN and compares them.
     """
@@ -24,9 +24,10 @@ def two_layer():
     N_COLLOCATION_POINTS = 40000
     N_BOUNDARY_POINTS = 5000
     COLLOCATION_DOMAIN_SIZE = (35e-9, 20, 20)
-    EPOCHS_WARMUP = 5000
+    EPOCHS_WARMUP = 10000
     EPOCHS = 20000
-    RESULTS_FOLDER = Path("results/two_layer")
+    RESULTS_FOLDER = results_folder
+    (RESULTS_FOLDER / "warmup").mkdir(parents=True, exist_ok=True)
 
     snapshots = np.load("paper_data/2layer_wavefield.npz")["00000_E"]
 
@@ -61,13 +62,11 @@ def two_layer():
 
 
     # Create the dataset
-    train_indexes = [15, 19, 23, 27, 31, 35]
+    train_indexes = training_indexes
     train_dataset = PaperDataset(snapshots[train_indexes], t_offsets=train_indexes)
     print("Train dataset points:")
     train_dataset.print_info()
-    save_field_animation(train_dataset.snapshots.reshape((-1, *IMG_SIZE)), None, interval=50)
-    # frame_15ns = train_dataset.get_frame(1)
-    #show_field(frame_15ns)
+
     scaler = train_dataset.scaler
     val_indexes = [25]
     val_dataset = PaperDataset(snapshots[val_indexes], t_offsets=val_indexes, scaler=scaler)
@@ -78,10 +77,6 @@ def two_layer():
     test_dataset = PaperDataset(snapshots[test_indexes], t_offsets=test_indexes, scaler=scaler)
     print("Test dataset points:")
     test_dataset.print_info()
-    # save_field_animation(test_dataset.snapshots.reshape((-1, *IMG_SIZE)), None, interval=50)
-    # frame_60ns = val_dataset.get_frame(0)
-    # show_field(frame_60ns)
-
 
     # collocation points
     collocation_points = RNG.uniform(size=(3, N_COLLOCATION_POINTS)) * np.array(COLLOCATION_DOMAIN_SIZE).reshape(3, -1)
@@ -115,7 +110,7 @@ def two_layer():
     # get the derivative functions
     f_PINN = get_f(PINN_model, scaler)
     PINN_loss_fn_L4 = get_PINN_warmup_loss_fn(L4loss)
-    PINN_loss_fn_L2 = get_PINN_loss_fn(nn.MSELoss())
+    PINN_loss_fn_L2 = get_PINN_loss_fn(nn.MSELoss(), 2e-18, use_boundary_loss)
     regular_loss_fn = nn.MSELoss()
 
     # get f for regular model
@@ -185,27 +180,23 @@ def two_layer():
 
     torch.save(best_PINN_model.state_dict(), RESULTS_FOLDER / "PINN_model_best.ckp")
     torch.save(best_regular_model.state_dict(), RESULTS_FOLDER / "NN_model_best.ckp")
+    torch.save(last_PINN_model.state_dict(), RESULTS_FOLDER / "PINN_model_last.ckp")
+    torch.save(last_regular_model.state_dict(), RESULTS_FOLDER / "NN_model_last.ckp")
 
     best_PINN_model = best_PINN_model.to(DEVICE)
     best_regular_model = best_regular_model.to(DEVICE)
+
+    f_PINN = get_f(best_PINN_model, scaler)
+    f_regular = get_f(best_regular_model, scaler)
 
     show_predictions(f_PINN, f_regular, val_samples, RESULTS_FOLDER / "val_predictions.png")
     show_predictions(f_PINN, f_regular, test_samples, RESULTS_FOLDER / "test_predictions.png")
 
 if __name__ == "__main__":
-    two_layer()
-
-
-# 5x64
-# PINN train loss 0.04249459132552147
-# PINN val loss 0.1067247986793518
-# PINN physics loss 0.4107848107814789
-# NN train loss 1.9267771244049072
-# NN val loss 2.8269050121307373
-    
-# 5x256 still no reflection
-# PINN train loss 0.0013126502744853497
-# PINN val loss 0.00221841549500823
-# PINN physics loss 0.006338852923363447
-# NN train loss 0.07565296441316605
-# NN val loss 0.08619776368141174
+    # train three different experiments:
+    # with observations of the reflection
+    two_layer([15, 19, 23, 27, 31, 35], Path("results/two_layer_0"), False)
+    # without observations of the reflection
+    two_layer([15, 19, 23], Path("results/two_layer_1"), False)
+    # without observations of the reflection, but with boundary loss
+    two_layer([15, 19, 23], Path("results/two_layer_2"), True)

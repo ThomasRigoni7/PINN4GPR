@@ -42,15 +42,26 @@ class GprMaxConfig(BaseModel):  # numpydoc ignore=PR01
     antenna_sleeper_distance: float
     layer_sizes: dict[str, tuple[float, float]]
     layer_roughness: dict[str, float]
+    layer_sizes_beta_params: tuple[float, float]
 
     # Sleepers
     sleepers_separation: float
     sleepers_material_probabilities: dict[str, float]
     sleepers_sizes: dict[str, tuple[float, float, float]]
 
-    # Fouling/water content
+    # Fouling
+    fouling_beta_params: tuple[float, float]
     fouling_box_threshold: float
+    # Water content
+    general_water_content_beta_params: tuple[float, float]
     water_infiltration_threshold: float
+    water_infiltration_sampling_std: float
+    layer_water_sampling_std: float
+    # General deterioration
+    general_deterioration_beta_params: tuple[float, float]
 
     # Snapshots
     snapshot_times: list[float]
+
+    create_views: bool
+

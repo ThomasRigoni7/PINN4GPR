@@ -4,6 +4,15 @@ from matplotlib.axes import Axes
 from sklearn.metrics import mean_squared_error
 from scipy import fftpack
 
+import matplotlib.pylab as pylab
+params = {'legend.fontsize': 'x-large',
+          'figure.figsize': (16, 9),
+         'axes.labelsize': 'x-large',
+         'axes.titlesize':'x-large',
+         'xtick.labelsize':'x-large',
+         'ytick.labelsize':'x-large'}
+pylab.rcParams.update(params)
+
 def plot_bscan(title: str, ax: Axes, bscan: np.ndarray, dt: float):
     """
     Plots a B-scan in the specitied subplot.
@@ -180,15 +189,35 @@ def initial_comparison():
 
     plot_ascans(std_3D_cylinders_rail, std_3D_spheres, ("3Dr", "3Ds"), ("g", "b"))
     plot_ascans(std_2D_spheres, std_3D_spheres, ("2Ds", "3Ds"), ("grey", "b"))
+    adj_2D_spheres = plot_ascans(std_2D_circles, std_2D_spheres, ("2Dc", "2Ds"), ("r", "grey"))
     
     print("B-scans MSE:")
-    print("2Dc-2Db:", get_bscan_mse(std_2D_circles, std_2D_box))
-    print("2Dc-3Ds:", get_bscan_mse(std_2D_circles, adj_3D_spheres))
-    print("2Dc-3Dc:", get_bscan_mse(std_2D_circles, adj_3D))
-    print("3Dc-3Dr:", get_bscan_mse(std_3D_cylinders, std_3D_cylinders_rail))
-    print("3Dr-3Ds:", get_bscan_mse(std_3D_cylinders_rail, std_3D_spheres))
-    print("3Ds-2Ds:", get_bscan_mse(std_2D_spheres, std_3D_spheres))
+    print("2Db-2Dc:", get_bscan_mse(adj_box, std_2D_circles))
+    print("2Db-3Dc:", get_bscan_mse(adj_box, adj_3D))
+    print("2Db-3Dr:", get_bscan_mse(adj_box, adj_3D_rail))
+    print("2Db-3Ds:", get_bscan_mse(adj_box, adj_3D_spheres))
+    print("2Db-2Ds:", get_bscan_mse(adj_box, adj_2D_spheres))
+    print()
 
+    print("2Dc-3Dc:", get_bscan_mse(std_2D_circles, adj_3D))
+    print("2Dc-3Dr:", get_bscan_mse(std_2D_circles, adj_3D_rail))
+    print("2Dc-3Ds:", get_bscan_mse(std_2D_circles, adj_3D_spheres))
+    print("2Dc-2Ds:", get_bscan_mse(std_2D_circles, adj_2D_spheres))
+    print()
+
+    print("3Dc-3Dr:", get_bscan_mse(adj_3D, adj_3D_rail))
+    print("3Dc-3Ds:", get_bscan_mse(adj_3D, adj_3D_spheres))
+    print("3Dc-2Ds:", get_bscan_mse(adj_3D, adj_2D_spheres))
+    print()
+    
+    print("3Dr-3Ds:", get_bscan_mse(adj_3D_rail, adj_3D_spheres))
+    print("3Dr-2Ds:", get_bscan_mse(adj_3D_rail, adj_2D_spheres))
+    print()
+
+    print("3Ds-2Ds:", get_bscan_mse(adj_3D_spheres, adj_2D_spheres))
+    print()
+
+    print("====================")
 
     fig, axs = plt.subplots(ncols=4, nrows=2)
 

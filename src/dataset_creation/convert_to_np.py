@@ -7,6 +7,7 @@ import numpy as np
 from skimage.measure import block_reduce
 import h5py
 from pathlib import Path
+from tqdm import tqdm
 
 def _update_debye_er(materials_list: list[str], debye_materials: list[str], frequency: float=1e9):
     """

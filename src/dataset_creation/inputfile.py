@@ -6,9 +6,9 @@ from typing import Iterable
 import textwrap
 import numpy as np
 
-from .configuration import GprMaxConfig
-from .ballast_simulation import BallastSimulation
-from .statistics import Metadata
+from src.dataset_creation.configuration import GprMaxConfig
+from src.dataset_creation.ballast_simulation import BallastSimulation
+from src.dataset_creation.statistics import Metadata
 
 class InputFile():
     """
@@ -179,7 +179,7 @@ class InputFile():
         """
         Write to file the commands related to ballast stones and its associated fouling.
         
-        The ballast position is generated on the fly, using a pymunk simulation. See :class:`.BallastSimulation`.
+        The ballast position is generated on the fly, using a pymunk simulation. See :class:`src.dataset_creation.ballast_simulation.BallastSimulation`.
         
         Parameters
         ----------
@@ -389,16 +389,19 @@ class InputFile():
         Parameters
         ----------
         objects_dir : str | Path
-            directory in which to place the geometry objects files.
+            directory in which to place the geometry object files. Not created if None.
         view_dir : str | Path
-            directory in which to place the geometry view file.
+            directory in which to place the geometry view file. Not created if None.
         """
-        objects_dir = Path(objects_dir)
-        view_dir = Path(view_dir)
 
         self.write_line("## Save geometry")
-        self.write_command("geometry_objects_write", (0, 0, 0, self.domain[0], self.domain[1], self.domain[2], objects_dir / (self.title + "_geometry")))
-        self.write_command("geometry_view", (0, 0, 0,
+        if objects_dir is not None:
+            objects_dir = Path(objects_dir)
+            self.write_command("geometry_objects_write", (0, 0, 0, self.domain[0], self.domain[1], self.domain[2], objects_dir / (self.title + "_geometry")))
+        
+        if view_dir is not None:
+            view_dir = Path(view_dir)
+            self.write_command("geometry_view", (0, 0, 0,
                                              self.domain[0], self.domain[1], self.domain[2], 
                                              self.spatial_resolution[0], self.spatial_resolution[1], self.spatial_resolution[2] , 
                                              view_dir / (self.title + "_view"), "n"))
@@ -477,12 +480,12 @@ class InputFile():
 
         Samples a variety of factors depending on the configuration provided:
          - the kind of track between a regular PSS, AC rail and gravel-sand subgrade.
-         - the layer sizes with a beta(2, 2) distribution between the given bounds.
-         - fouling level with a beta(1.2, 2.5), if > `fouling_box_threshold` the track is considered fouled.
-         - general water content between 0 and 1 with a beta(1.2, 2.5).
+         - the layer sizes with a beta distribution between the given bounds.
+         - fouling level with a beta distribution, if > `fouling_box_threshold` the track is considered fouled.
+         - general water content between 0 and 1 with a beta distribution.
          - water infiltrations between the layers with a normal distribution centered on the
             general water content. They are added if the value > `water_infiltration_threshold`.
-         - general deterioration of the sub-ballast layers, with a beta(1.2, 2.5).
+         - general deterioration of the sub-ballast layers, with a beta distribution.
          - sub-ballast layer water ranges with a normal distribution centered on the 
             general water content.
          - sleepers materials and position.
@@ -514,11 +517,11 @@ class InputFile():
         # sample layer sizes
         sampled_layer_sizes = {}
         for layer_name, layer_range in config.layer_sizes.items():
-            size = self.random_generator.beta(2, 2) * (layer_range[1] - layer_range[0]) + layer_range[0]
+            size = self.random_generator.beta(*config.layer_sizes_beta_params) * (layer_range[1] - layer_range[0]) + layer_range[0]
             sampled_layer_sizes[layer_name] = size
         
         # sample fouling level
-        fouling_level = self.random_generator.beta(1.2, 2.5)
+        fouling_level = self.random_generator.beta(*config.fouling_beta_params)
         is_fouled = fouling_level > config.fouling_box_threshold
         if is_fouled:
             size = fouling_level * sampled_layer_sizes["ballast"]
@@ -528,10 +531,10 @@ class InputFile():
         metadata["layer_sizes"] = sampled_layer_sizes
 
         # sample water content between 0 and 1
-        general_water_content = self.random_generator.beta(1.2, 2.5)
+        general_water_content = self.random_generator.beta(*config.general_water_content_beta_params)
         metadata["general_water_content"] = general_water_content
         # water infiltrations in fouling-asphalt, asphalt-PSS, PSS-subsoil
-        water_infiltrations = self.random_generator.normal(general_water_content, 0.2, 3) > config.water_infiltration_threshold
+        water_infiltrations = self.random_generator.normal(general_water_content, config.water_infiltration_sampling_std, 3) > config.water_infiltration_threshold
         metadata["water_infiltrations"] = water_infiltrations
         
         # sample sleepers material
@@ -540,13 +543,13 @@ class InputFile():
         metadata["sleepers_material"] = str(sleepers_material_name)
         
         # sample deterioration of substructure
-        general_deterioration = self.random_generator.beta(1.2, 2.5)
+        general_deterioration = self.random_generator.beta(*config.general_deterioration_beta_params)
         metadata["general_deterioration"] = general_deterioration
 
         layer_water_ranges = []
         for _ in range(3):
-            v1 = self.random_generator.normal(general_water_content, 0.1)
-            v2 = self.random_generator.normal(general_water_content, 0.1)
+            v1 = self.random_generator.normal(general_water_content, config.layer_water_sampling_std)
+            v2 = self.random_generator.normal(general_water_content, config.layer_water_sampling_std)
             low, high = sorted([float(v1), float(v2)])
             sampled_range = max(low, 0), min(high, 1)
             layer_water_ranges.append(sampled_range)
@@ -708,6 +711,7 @@ class InputFile():
             self.write_line("## No snapshots\n")
 
         # SAVE GEOMETRY
-        self.write_save_geometry(config.tmp_dir, config.output_dir)
+        view_dir = config.output_dir if config.create_views else None
+        self.write_save_geometry(config.tmp_dir, view_dir)
 
         return metadata

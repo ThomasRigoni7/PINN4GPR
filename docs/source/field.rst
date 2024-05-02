@@ -1,7 +1,7 @@
-misc module
+field module
 ==========================
 
-.. automodule:: visualization.misc
+.. automodule:: src.visualization.field
    :members:
    :undoc-members:
    :show-inheritance:

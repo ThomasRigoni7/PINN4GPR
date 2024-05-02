@@ -1,0 +1,110 @@
+#######################
+# general configuration
+#######################
+n_samples: 30000
+n_ascans: 1
+seed: 42
+
+generate_input: false
+run_simulations: false
+geometry_only: false
+
+input_dir: "dataset_ascan/input/"
+tmp_dir: "gprmax_tmp_files/"
+output_dir: "dataset_ascan/output/"
+
+# simulation configuration
+
+track_configuration_probabilities: {
+  PSS: 0.4,
+  AC_rail: 0.1,
+  subgrade: 0.5
+}
+
+domain_size: [1.5, 1.70, 0.002]
+spatial_resolution: [0.002, 0.002, 0.002]
+time_window: 2.5e-08
+
+source_waveform: "ricker"
+source_amplitude: 1
+source_central_frequency: 1000000000
+source_position: [0.65, 1.50, 0.001]
+receiver_position: [0.85, 1.50, 0.001]
+step_size: [0.02, 0, 0]
+
+fractal_dimension: 1.5
+pep_soil_number: 15
+
+materials: {
+  ballast: [6.5, 0, 1, 0],
+  concrete: [8, 0.01, 1, 0],
+  wood: [2, 0.01, 1, 0],
+  steel: [1, 1.4e6, 1000, 0],
+  asphalt: [8, 0.01, 1, 0],
+  # Peplinski soils: the values are in order:
+  #  - sand fraction
+  #  - clay fraction
+  #  - bulk density
+  #  - sand particle density
+  #  - min and max water content
+  # the actual values will be a linear interpolation of the healty and deteriorated state, 
+  # sampled during dataset creation based on general deterioration and water content of the sample.
+  fouling: [0.28, 0.12, 1.9, 2.65, 0.05, 0.20],
+  PSS_healty: [0.48, 0.02, 2.3, 2.65, 0.05, 0.20],
+  PSS_deteriorated: [0.35, 0.30, 2.3, 2.65, 0.05, 0.20],
+  subgrade_healty: [0.22, 0.01, 2.1, 2.65, 0.05, 0.20],
+  subgrade_deteriorated: [0.20, 0.30, 2.2, 2.65, 0.05, 0.20],
+  subsoil_good: [0.27, 0.03, 2, 2.65, 0.05, 0.20],
+  subsoil_problematic: [0.65, 0.35, 2.1, 2.65, 0.05, 0.20],
+}
+
+antenna_sleeper_distance: 0.465
+
+# interval in which to sample the layer sizes, 
+# asphalt only used for AC rail
+layer_sizes: {
+  ballast: [0.2, 0.35],
+  asphalt: [0.05, 0.08],
+  PSS: [0.25, 0.40]
+}
+# roughness of the layers
+layer_roughness: {
+  top_fouling: 0.02,
+  fouling_asphalt: 0.01,
+  asphalt_pss: 0.01,
+  pss_subsoil: 0.03
+}
+
+# beta parameters for sampling the layer sizes
+layer_sizes_beta_params: [2, 2]
+
+# sleepers
+sleepers_separation: 0.65
+sleepers_material_probabilities: {
+  "wood": 0.25,
+  "concrete": 0.50,
+  "steel": 0.25
+}
+sleepers_sizes: {
+  "wood": [0.26, 0.15, 0.002],
+  "concrete": [0.25, 0.23, 0.002],
+  "steel": [0.32, 0.10, 0.002],
+}
+
+# Fouling
+fouling_beta_params: [1.2, 2.5]
+fouling_box_threshold: 0.7
+# Water content
+general_water_content_beta_params: [1.2, 2.5]
+# how close the water infiltration values will be to the general water content
+water_infiltration_sampling_std: 0.2
+water_infiltration_threshold: 0.8
+# how close the water content in layers will be to the general water content
+layer_water_sampling_std: 0.1
+# General deterioration
+general_deterioration_beta_params: [1.2, 2.5]
+
+# wavefield snapshots
+snapshot_times: [2.0e-09, 3.0e-09, 4.0e-09, 5.0e-09, 6.0e-09, 7.0e-09, 8.0e-09, 9.0e-09, 1.0e-08, 1.1e-08, 1.2e-08, 1.3e-08, 1.4e-08, 1.5e-08, 1.6e-08, 1.7e-08, 1.8e-08, 1.9e-08, 2.0e-08, 2.1e-08, 2.2e-08, 2.3e-08, 2.4e-08, 2.5e-8]
+
+create_views: True

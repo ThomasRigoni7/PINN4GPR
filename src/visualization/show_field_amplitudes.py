@@ -1,3 +1,7 @@
+"""
+This script shows the average max amplitude of frames in the dataset, in relation to time.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit

@@ -1,17 +1,17 @@
 #######################
 # general configuration
 #######################
-n_samples: 1
-n_ascans: 1
-seed: 42
+n_samples: 4000
+n_ascans: 90
+seed: 7
 
 generate_input: false
 run_simulations: false
 geometry_only: false
 
-input_dir: "gprmax_input_files/generated/"
+input_dir: "dataset_bscan/input/"
 tmp_dir: "gprmax_tmp_files/"
-output_dir: "gprmax_output_files/"
+output_dir: "dataset_bscan/output/"
 
 # simulation configuration
 
@@ -28,9 +28,9 @@ time_window: 2.5e-08
 source_waveform: "ricker"
 source_amplitude: 1
 source_central_frequency: 1000000000
-source_position: [0.65, 1.50, 0.001]
-receiver_position: [0.85, 1.50, 0.001]
-step_size: [0.02, 0, 0]
+source_position: [0.20, 1.50, 0.001]
+receiver_position: [0.40, 1.50, 0.001]
+step_size: [0.01, 0, 0]
 
 fractal_dimension: 1.5
 pep_soil_number: 15
@@ -38,7 +38,6 @@ pep_soil_number: 15
 materials: {
   ballast: [6.5, 0, 1, 0],
   concrete: [8, 0.01, 1, 0],
-  gravel: [5, 0, 1, 0],
   wood: [2, 0.01, 1, 0],
   steel: [1, 1.4e6, 1000, 0],
   asphalt: [8, 0.01, 1, 0],
@@ -76,6 +75,9 @@ layer_roughness: {
   pss_subsoil: 0.03
 }
 
+# beta parameters for sampling the layer sizes
+layer_sizes_beta_params: [2, 2]
+
 # sleepers
 sleepers_separation: 0.65
 sleepers_material_probabilities: {
@@ -89,11 +91,22 @@ sleepers_sizes: {
   "steel": [0.32, 0.10, 0.002],
 }
 
-# fouling and water content
+# Fouling
+fouling_beta_params: [1.2, 2.5]
 fouling_box_threshold: 0.7
+# Water content
+general_water_content_beta_params: [1.2, 2.5]
+# how close the water infiltration values will be to the general water content
+water_infiltration_sampling_std: 0.2
 water_infiltration_threshold: 0.8
+# how close the water content in layers will be to the general water content
+layer_water_sampling_std: 0.1
+# General deterioration
+general_deterioration_beta_params: [1.2, 2.5]
 
 
 # wavefield snapshots
-snapshot_times: [2.0e-09, 3.0e-09, 4.0e-09, 5.0e-09, 6.0e-09, 7.0e-09, 8.0e-09, 9.0e-09, 1.0e-08, 1.1e-08, 1.2e-08, 1.3e-08, 1.4e-08, 1.5e-08, 1.6e-08, 1.7e-08, 1.8e-08, 1.9e-08, 2.0e-08, 2.1e-08, 2.2e-08, 2.3e-08, 2.4e-08, 2.5e-8]
-# snapshot_times: []
+# snapshot_times: [2.0e-09, 3.0e-09, 4.0e-09, 5.0e-09, 6.0e-09, 7.0e-09, 8.0e-09, 9.0e-09, 1.0e-08, 1.1e-08, 1.2e-08, 1.3e-08, 1.4e-08, 1.5e-08, 1.6e-08, 1.7e-08, 1.8e-08, 1.9e-08, 2.0e-08, 2.1e-08, 2.2e-08, 2.3e-08, 2.4e-08, 2.5e-8]
+snapshot_times: []
+
+create_views: False

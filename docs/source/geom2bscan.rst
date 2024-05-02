@@ -1,7 +1,7 @@
-create\_dataset module
+geom2bscan module
 ======================
 
-.. automodule:: src.dataset_creation.create_dataset
+.. automodule:: src.dataset_creation.geom2bscan
    :members:
    :undoc-members:
    :show-inheritance:
