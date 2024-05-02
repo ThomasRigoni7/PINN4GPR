@@ -250,6 +250,7 @@ typing-extensions==4.11.0
     #   pydantic-core
     #   tensorflow
     #   torch
+tqdm==4.66.2
 urllib3==2.2.1
     # via requests
 vtk==9.3.0

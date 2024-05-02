@@ -467,8 +467,13 @@ def predict(dataset_output_path: str | Path, model_checkpoint_path: str | Path, 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    model = build_network()
-    model.load_weights(model_checkpoint_path)
+    model_checkpoint_path = Path(model_checkpoint_path)
+
+    if model_checkpoint_path.suffix == ".keras":
+        model = keras.models.load_model('my_model.keras')
+    else:
+        model = build_network()
+        model.load_weights(model_checkpoint_path)
 
     mask = None
     if label_mask_path is not None:
