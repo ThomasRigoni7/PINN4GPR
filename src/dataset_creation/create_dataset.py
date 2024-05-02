@@ -65,9 +65,11 @@ def _parse_arguments():
     # setting geometry only automatically runs the simulations
     if args.geometry_only:
         args.run_simulations = True
+        args.n_ascans = 1
     
     if not (args.generate_input or args.run_simulations):
         parser.print_help()
+        print("Error: either option -i or -r must be specified.")
         exit(1)
 
     return args

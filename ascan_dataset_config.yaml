@@ -11,7 +11,7 @@ geometry_only: false
 
 input_dir: "dataset_ascan/input/"
 tmp_dir: "gprmax_tmp_files/"
-output_dir: "dataset_bscan/output/"
+output_dir: "dataset_ascan/output/"
 
 # simulation configuration
 

@@ -28,6 +28,8 @@ def _parse_arguments():
     parser_train = subparsers.add_parser("train", help='Train a model to approximate the given dataset.')
     parser_train.add_argument("-d", "--dataset_dir", type=str, help="Dataset output folder path.", required=True)
     parser_train.add_argument("-o", "--output_dir", type=str, help="Output directory for model training.", required=True)
+    parser_train.add_argument("-e", "--epochs", type=str, help="Number of training epochs.", default=300)
+    parser_train.add_argument("-bs", "--batch_size", type=str, help="Training batch size.", default=10)
     parser_train.add_argument("--gpu", type=int, help="GPU to use for predictions/training", default=0)
 
 
@@ -293,7 +295,7 @@ def build_network():
     return model
 
 
-def train(dataset_output_path:str | Path, output_path: str | Path):
+def train(dataset_output_path:str | Path, output_path: str | Path, epochs: int, batch_size: int):
     """
     Trains a geom2bscan model with the (labelled) data in the dataset.
 
@@ -303,6 +305,10 @@ def train(dataset_output_path:str | Path, output_path: str | Path):
         dataset output folder.
     output_path : str | Path
         Directory in which all training results will be saved.
+    epochs : int
+        number of training epochs.
+    batch_size : int
+        training batch size.
     """
 
     def get_lr_metric(optimizer):
@@ -330,8 +336,6 @@ def train(dataset_output_path:str | Path, output_path: str | Path):
 
     # Training
     model_path = output_path / "model_checkpoint.keras"
-    total_epoch = 300
-    batch_size = 10
     output_path.mkdir(exist_ok=True)
     Adam = keras.optimizers.Adam(learning_rate=1e-4)
     lr_metric = get_lr_metric(Adam)
@@ -341,7 +345,7 @@ def train(dataset_output_path:str | Path, output_path: str | Path):
 
 
 
-    history = model.fit(x=[train_data1,train_data2], y=train_mask, batch_size=batch_size, epochs=total_epoch, verbose=2, \
+    history = model.fit(x=[train_data1,train_data2], y=train_mask, batch_size=batch_size, epochs=epochs, verbose=2, \
         validation_data=([test_data1,test_data2], test_mask), callbacks=[model_checkpoint,lr_checkpoint])
 
     # plot history
@@ -506,6 +510,6 @@ if __name__ == "__main__":
 
 
     if args.action == "train":
-        train(args.output_dir)
+        train(args.dataset_dir, args.output_dir, args.epochs, args.batch_size)
     elif args.action == "predict":
         predict(args.dataset_dir, args.model_path, args.output_dir, args.mask_path, args.mem_batch_size)
