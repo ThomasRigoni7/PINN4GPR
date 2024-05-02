@@ -396,11 +396,11 @@ def rail_sample():
 
     (RESULTS_FOLDER / "warmup").mkdir(exist_ok=True, parents=True)
 
-    snapshots = np.load("munnezza/output/scan_00000/snapshots.npz")["00000_E"]
-    geometry = np.load("munnezza/output/scan_00000/scan_00000_geometry.npy")
+    snapshots = np.load("dataset_ascan_snapshots_0.1ns/output/scan_00000/snapshots.npz")["00000_E"]
+    geometry = np.load("dataset_ascan_snapshots_0.1ns/output/scan_00000/scan_00000_geometry.npy")
     geometry = torch.from_numpy(geometry).to(DEVICE)
 
-    # ascan_samples = get_ascan_samples("munnezza/output/scan_00000/scan_00000_merged.out", (7., 10.))
+    # ascan_samples = get_ascan_samples("dataset_ascan_snapshots_0.1ns/output/scan_00000/scan_00000_merged.out", (7., 10.))
 
     # plt.imshow(geometry[1].cpu())
     # plt.show()
@@ -556,8 +556,8 @@ def rail_sample_NN():
 
     (RESULTS_FOLDER / "warmup").mkdir(exist_ok=True, parents=True)
 
-    snapshots = np.load("munnezza/output/scan_00000/snapshots.npz")["00000_E"]
-    geometry = np.load("munnezza/output/scan_00000/scan_00000_geometry.npy")
+    snapshots = np.load("dataset_ascan_snapshots_0.1ns/output/scan_00000/snapshots.npz")["00000_E"]
+    geometry = np.load("dataset_ascan_snapshots_0.1ns/output/scan_00000/scan_00000_geometry.npy")
     geometry = torch.from_numpy(geometry).to(DEVICE)
 
     regular_model = MLP(3, [128]*5, 1, nn.ReLU)

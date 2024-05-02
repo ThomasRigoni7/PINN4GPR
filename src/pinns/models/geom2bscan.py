@@ -187,7 +187,7 @@ if __name__ == "__main__":
     test_data1 = []
     test_data2 = []
     test_mask = []
-    path = 'munnezza_data/' 
+    path = 'geom2bscan_paper_data/' 
     sub_path = 'exp/'
 
     # Load data

@@ -140,9 +140,9 @@ def two_layer():
     Trains a two-layer model PINN and NN and compares them.
     """
 
-    snapshots = np.load("munnezza/output/scan_00000/snapshots.npz")["00000_E"]
+    snapshots = np.load("dataset_ascan_snapshots_0.1ns/output/scan_00000/snapshots.npz")["00000_E"]
 
-    geometry = np.load("munnezza/output/scan_00000/scan_00000_geometry.npy")
+    geometry = np.load("dataset_ascan_snapshots_0.1ns/output/scan_00000/scan_00000_geometry.npy")
     geometry = torch.from_numpy(geometry).to(DEVICE)
 
     # print(geometry.shape)

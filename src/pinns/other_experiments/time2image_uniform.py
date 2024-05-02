@@ -263,11 +263,11 @@ def get_f(model: Time2Image, input_scale: float, output_scale: float):
 
 def time2Image():
 
-    # geometry = np.load("munnezza/output/scan_00000/scan_00000_geometry.npy")
-    # snapshots = np.load("munnezza/output/scan_00000/snapshots.npz")["00000_E"]
+    # geometry = np.load("dataset_ascan_snapshots_0.1ns/output/scan_00000/scan_00000_geometry.npy")
+    # snapshots = np.load("dataset_ascan_snapshots_0.1ns/output/scan_00000/snapshots.npz")["00000_E"]
 
-    geometry = np.load("munnezza/output/scan_00001/scan_00001_geometry.npy")
-    snapshots = np.load("munnezza/output/scan_00001/snapshots.npz")["00000_E"]
+    geometry = np.load("dataset_ascan_snapshots_0.1ns/output/scan_00001/scan_00001_geometry.npy")
+    snapshots = np.load("dataset_ascan_snapshots_0.1ns/output/scan_00001/snapshots.npz")["00000_E"]
 
     geometry = block_reduce(geometry, block_size=(1, 3, 3), func=np.mean)
     geometry = torch.from_numpy(geometry).to(DEVICE)
@@ -277,7 +277,7 @@ def time2Image():
 
     snapshots = torch.from_numpy(snapshots).to(DEVICE, dtype=torch.float32)
     #times = np.load("paper_data/uniform_wavefield.npz")["0000_times"]
-    times = np.load("munnezza/output/scan_00001/snapshots.npz")["00000_times"]
+    times = np.load("dataset_ascan_snapshots_0.1ns/output/scan_00001/snapshots.npz")["00000_times"]
     times = torch.from_numpy(times).to(DEVICE, dtype=torch.float32)
 
     train_set = snapshots[20:40:5]

@@ -332,11 +332,11 @@ def rail_sample():
 
     (RESULTS_FOLDER / "warmup").mkdir(exist_ok=True, parents=True)
 
-    snapshots = np.load("munnezza/output/scan_00000/snapshots.npz")["00000_E"]
-    geometry = np.load("munnezza/output/scan_00000/scan_00000_geometry.npy")
+    snapshots = np.load("dataset_ascan_snapshots_0.1ns/output/scan_00000/snapshots.npz")["00000_E"]
+    geometry = np.load("dataset_ascan_snapshots_0.1ns/output/scan_00000/scan_00000_geometry.npy")
 
-    # snapshots = np.load("munnezza/output/scan_00000/snapshots.npz")["00000_E"][1:]
-    # geometry = np.load("munnezza/output/scan_00000/scan_00000_geometry.npy")
+    # snapshots = np.load("dataset_ascan_snapshots_0.1ns/output/scan_00000/snapshots.npz")["00000_E"][1:]
+    # geometry = np.load("dataset_ascan_snapshots_0.1ns/output/scan_00000/scan_00000_geometry.npy")
 
     geometry = block_reduce(geometry, block_size=(1, 3, 3), func=np.mean)
     geometry = torch.from_numpy(geometry).to(DEVICE)
