@@ -22,24 +22,109 @@ Dataset generation
 A-scan dataset
 --------------
 
-.. image:: figures/dataset_creation/ascan_dataset/geom.png
-    :width: 38%
-.. image:: figures/dataset_creation/ascan_dataset/ascan.png
-    :width: 60%
+
+.. |geom_ascan| image:: figures/dataset_creation/ascan_dataset/geom.png
+    :height: 300
+.. |ascan| image:: figures/dataset_creation/ascan_dataset/ascan.png
+    :height: 300
+
+============ =======
+|geom_ascan| |ascan|  
+geometry     ascan
+============ =======
 
 B-scan dataset
 --------------
 
-.. image:: figures/dataset_creation/bscan_dataset/geom.png
-    :width: 45%
-.. image:: figures/dataset_creation/bscan_dataset/bscan.png
-    :width: 45%
+.. |geom_bscan| image:: figures/dataset_creation/bscan_dataset/geom.png
+    :height: 300
+.. |bscan| image:: figures/dataset_creation/bscan_dataset/bscan.png
+    :height: 300
 
+============ =======
+|geom_bscan| |bscan|
+geometry     bscan
+============ =======
 
 CNN black box model
 ===================
 An encoder-decoder CNN architecture was used to approximate the B-scan predictions from the sample geometry:
 
+.. |geom_cnn| image:: figures/dataset_creation/geom2bscan/geom.png
+    :height: 300
+.. |label_cnn| image:: figures/dataset_creation/geom2bscan/label.png
+    :height: 300
+.. |pred_cnn| image:: figures/dataset_creation/geom2bscan/prediction.png
+    :height: 300
+
+========== ============= ==========
+|geom_cnn| |label_bscan| |pred_cnn|  
+geometry   label         prediction
+========== ============= ==========
 
 PINN models
 ===========
+
+Uniform geometry
+----------------
+
+.. |uniform_fig| image:: figures/mlp_uniform/final40.png
+    :height: 200
+
+===========================================================
+|uniform_fig|
+ground truth, PINN prediction, NN prediction and difference
+===========================================================
+
+
+Two layer geometry
+------------------
+
+.. |2layer_fig| image:: figures/mlp_2layer/final45.png
+    :height: 200
+
+===========================================================
+|2layer_fig|
+ground truth, PINN prediction, NN prediction and difference
+===========================================================
+
+Railway geometry
+----------------
+
+.. |mlp_rail_fig| image:: figures/mlp_rail/final1.png
+    :height: 200
+
+============================================================
+|mlp_rail_fig|
+ground truth, PINN prediction, NN prediction and differences
+============================================================
+
+CNN PINNheight
+--------
+
+.. |time2image_gt| image:: figures/time2image/gt.gif
+    :width: 450
+.. |time2image_pred| image:: figures/time2image/preds.gif
+    :width: 450
+
+=============== =================
+|time2image_gt| |time2image_pred|  
+ground truth    predictions
+=============== =================
+
+
+1D wave propagation
+-------------------
+
+.. |1D_mlp| image:: figures/1D_wavefield/mlp.png
+    :width: 300
+.. |1D_cnn| image:: figures/1D_wavefield/cnn.png
+    :width: 300
+.. |1D_discrete_mlp| image:: figures/1D_wavefield/discrete_mlp.png
+    :width: 300
+
+distance/time charts:
+======== =======  =================
+|1D_mlp| |1D_cnn| |1D_discrete_mlp|  
+MLP      CNN      discrete MLP
+======== ======== =================
