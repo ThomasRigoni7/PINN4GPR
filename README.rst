@@ -16,6 +16,8 @@ This project enables you to:
 
 Refer to the `full documentation <https://pinn4gpr.readthedocs.io/en/latest/index.html>`_ for installation and usage instructions.
 
+An in-depth account of this work is available on my `Master Thesis report <master_thesis_report.pdf>`_.
+
 Dataset generation
 ==================
 
