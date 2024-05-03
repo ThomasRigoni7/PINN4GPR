@@ -65,8 +65,8 @@ geometry   label       prediction
 PINN models
 ===========
 
-Uniform geometry
-----------------
+MLP on uniform geometry
+-----------------------
 
 .. |uniform_fig| image:: figures/mlp_uniform/final_40.png
     :height: 200
@@ -79,8 +79,8 @@ ground truth, PINN prediction, NN prediction and difference
 ===========================================================
 
 
-Two layer geometry
-------------------
+MLP on two layer geometry
+-------------------------
 
 Time domain extension for a two layer geometry:
 
@@ -92,8 +92,8 @@ Time domain extension for a two layer geometry:
 ground truth, PINN prediction, NN prediction and difference
 ===========================================================
 
-Railway geometry
-----------------
+MLP on railway geometry
+-----------------------
 
 .. |mlp_rail_fig| image:: figures/mlp_rail/final_1.png
     :height: 200
@@ -103,8 +103,8 @@ Railway geometry
 ground truth, PINN prediction, NN prediction and differences
 ============================================================
 
-CNN PINNheight
---------
+CNN on railway geometry
+-----------------------
 
 .. |time2image_gt| image:: figures/time2image/gt.gif
     :width: 400
@@ -113,7 +113,7 @@ CNN PINNheight
 
 =============== =================
 |time2image_gt| |time2image_pred|  
-ground truth    predictions
+ground truth    PINN predictions
 =============== =================
 
 
