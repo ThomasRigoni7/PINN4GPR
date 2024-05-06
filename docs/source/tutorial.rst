@@ -91,6 +91,15 @@ A concrete example of dataset generation is:
      -m checkpoints/geom2bscan/model.keras -o dataset_bscan/predictions \
      --mask_path checkpoints/geom2bscan/median_mask.npy --mem_batch_size 10000
 
+.. note:: 
+  The script accepts samples with larger width than the pre-trained model input size.
+  In this case, a sliding window approach is used, where multiple predictions are fused together to 
+  generate the final prediction. The offset is half the size of the model input.
+
+  For this feature to work, the geometriey widths must be at least double the model input size
+  and a integer multiple of the offset.
+
+  
 Dataset contents
 ****************
 

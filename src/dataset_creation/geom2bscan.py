@@ -49,7 +49,7 @@ def _get_dataset_len(dataset_output_path: str | Path):
     dataset_output_path = Path(dataset_output_path)
     return len(list(dataset_output_path.glob("scan_*")))
 
-def load_dataset(dataset_output_path: str | Path = Path("dataset_bscan/gprmax_output_files"), indexes_interval: tuple[int,int] | None = None):
+def load_dataset(dataset_output_path: str | Path = Path("dataset_bscan/gprmax_output_files"), indexes_interval: tuple[int,int] | None = None, verbose = True):
     """
     Loads the B-scan dataset at the specified location. 
     Performs filtering of the PML bug related to steel sleepers.
@@ -60,29 +60,35 @@ def load_dataset(dataset_output_path: str | Path = Path("dataset_bscan/gprmax_ou
         location of the output folder of the dataset, by default Path("dataset_bscan/gprmax_output_files")
     indexes_interval : tuple[int, int] | None
         If specified, the interval of indexes to load, upper limit excluded. Default : None.
+    verbose : bool 
+        Controls weather to print info and show a progress bar for the data loading. Default: True.
         
     Returns
     -------
-    tuple[np.ndarray, np.ndarray]
-        data, labels
+    tuple[np.ndarray, np.ndarray, list[str]]
+        data, labels, sample names
     """
     geometries = []
     bscans = []
 
     dataset_output_path = Path(dataset_output_path)
-    print("Loading dataset...")
+    if verbose:
+        print("Loading dataset...")
 
-    if indexes_interval is None:
-        folders = list(dataset_output_path.glob("scan_*"))
-        folders.sort()
-    else:
-        folders = [dataset_output_path / f"scan_{str(i).zfill(5)}" for i in range(*indexes_interval)]
-        folders = [f for f in folders if f.exists()]
+    folders = list(dataset_output_path.glob("scan_*"))
+    folders.sort()
+    if indexes_interval is not None:
+        folders = folders[indexes_interval[0] : indexes_interval[1]]
 
     if len(folders) == 0:
         raise ValueError("No sample in the dataset, check dataset path and indexes interval.")
+    
+    sample_names = [f.name for f in folders]
 
-    for f in tqdm(folders):
+    if verbose:
+        folders = tqdm(folders)
+
+    for f in folders:
         geom = np.load(f / f"{f.name}_geometry.npy")
         bscan_path = f / f"{f.name}_merged.out"
         geometries.append(geom[0:2])
@@ -106,7 +112,7 @@ def load_dataset(dataset_output_path: str | Path = Path("dataset_bscan/gprmax_ou
 
     geometries = geometries.transpose(0, 2, 3, 1)
 
-    return geometries, bscans
+    return geometries, bscans, sample_names
 
 def split_dataset(geometries: np.ndarray, bscans: np.ndarray, random_state: int = 42):
     """
@@ -318,7 +324,7 @@ def train(dataset_output_path:str | Path, output_path: str | Path, epochs: int, 
     
     output_path = Path(output_path)
 
-    geometries, bscans = load_dataset(dataset_output_path)
+    geometries, bscans, _ = load_dataset(dataset_output_path)
     train_data, train_labels, test_data, test_labels = split_dataset(geometries, bscans)
     train_labels, test_labels, median = filter_initial_wave(train_labels, test_labels)
     np.save(output_path / "median_mask.npy", median)
@@ -425,7 +431,91 @@ def predict_batch(geometries: np.ndarray, model, mask: np.ndarray | None):
 
     return predictions
 
-def save_predictions(preds: np.ndarray, output_dir: str | Path, start_index: int = 0):
+def predict_batch_wide(geometries: np.ndarray, model, mask: np.ndarray | None):
+    """
+    Splits wide geometries into multiple inputs for the model, then combines the predictions back into a single B-scan.
+
+    Uses a sliding window approach for predictions, with an offset of half image (192/2 = 96 pixels for the pretrained model).
+
+    Parameters
+    ----------
+    geometries : np.ndarray
+        input wide geometries.
+    model : tf.keras.Model
+        Model used for inference.
+    mask : np.ndarray | None
+        label mask, or None.
+
+    Returns
+    -------
+    np.ndarray
+        predictions
+    """
+
+    model_input_width = model.input_shape[0][2]
+    model_output_height, model_output_width = model.output_shape[1:3]
+    geometries_width = geometries.shape[2]
+    batch_size = geometries.shape[0]
+
+    offsets_per_image = 2
+
+    input_offset = model_input_width // offsets_per_image
+    output_offset = model_output_width // offsets_per_image
+
+    if not input_offset * offsets_per_image == model_input_width:
+        raise ValueError(f"Error: model output width ({model_output_width}) is not even.")
+
+    num_images = geometries_width // input_offset
+
+    if not (num_images * input_offset == geometries_width):
+        raise ValueError(f"Error: sample width ({geometries_width}) is not a multiple of the input offset ({input_offset}).")
+    
+    if geometries_width <= model_output_width + output_offset:
+        raise ValueError(f"Error: sample width ({geometries_width}) must be at least double the model output width ({model_output_width}).")
+    
+    num_images -= 1
+
+    # split the wide geometries into smaller inputs
+    split_indexes = np.arange(0, num_images, 1) * input_offset
+    split_geometries = [geometries[:, :, i:i+model_input_width, :] for i in split_indexes]
+
+    # predict the outputs
+    split_geometries = np.concatenate(split_geometries)
+    split_predictions = predict_batch(split_geometries, model, mask)
+    split_predictions = split_predictions.reshape(num_images, batch_size, model_output_height, model_output_width)
+
+    # create masks
+    stair_mask = np.linspace(0, 1, output_offset)
+
+    first_mask = np.ones(model_output_width)
+    first_mask[output_offset:] = np.flip(stair_mask)
+
+    last_mask = np.ones(model_output_width)
+    last_mask[:output_offset] = stair_mask
+
+    intermediate_mask = np.ones(model_output_width)
+    intermediate_mask[:output_offset] = stair_mask
+    intermediate_mask[output_offset:] = np.flip(stair_mask)
+
+    masks = [first_mask] + [intermediate_mask]*(num_images - 2) + [last_mask]
+    masks = np.asarray(masks)
+
+    # apply the masks
+    # shape: B x H x num_images x W
+    split_predictions = split_predictions.transpose(1, 2, 0, 3)
+    split_predictions = split_predictions * masks
+
+    predictions = np.zeros((batch_size, model_output_height, output_offset * (num_images + 1)), np.float32)
+
+    # add the predictions in a overlapped fashion 
+    # (concatenating odd and even predictions and then doing a simgle sum might improve performance)
+    for i in range(num_images):
+        offset = i * output_offset
+        predictions[:, :, offset : offset + model_output_width] += split_predictions[:, :, i, :]
+
+    return predictions
+
+def save_predictions(preds: np.ndarray, output_dir: str | Path, sample_names: list[str]):
     """
     Saves the predictions, each in its own file.
 
@@ -435,12 +525,48 @@ def save_predictions(preds: np.ndarray, output_dir: str | Path, start_index: int
         Predictions
     output_dir : str | Path
         Directory in which to save the files
-    start_index : int, optional
-        Index of the first prediction, by default 0
+    sample_names : list[str]
+        ordered list of names for the samples to save
     """
     output_dir = Path(output_dir)
-    for i, p in enumerate(preds):
-        np.save(output_dir / f"scan_{str(i + start_index).zfill(5)}", p)
+    for p, name in zip(preds, sample_names):
+        np.save((output_dir / name).with_suffix(".npy"), p)
+
+def check_shapes_equal(dataset_output_path: str | Path, model) -> bool:
+    """
+    Checks if the shapes of model input and dataset samples are equal.
+
+    Parameters
+    ----------
+    dataset_output_path : str | Path
+        dataset output folder path.
+    model : keras.Model
+        model used for inference.
+
+    Returns
+    -------
+    bool
+        True if the model input and geometry shapes are equal, False otherwise.
+    """
+
+    model_input_shape_1, model_input_shape_2 = model.input_shape
+    assert model_input_shape_1 == model_input_shape_2, f"Error: the model has different input shapes for epsilon_r ({model_input_shape_1}) and sigma ({model_input_shape_2})."
+    model_height, model_width = model_input_shape_1[1:3]
+    first_geometry, _, _ = load_dataset(dataset_output_path, (0, 1), verbose=False)
+    geometry_shape = first_geometry.shape
+    geometry_height, geometry_width = geometry_shape[1:3]
+
+    if not model_height == geometry_height:
+        raise ValueError(f"Error: model input height ({model_height}) is different from dataset sample height ({geometry_height}).")
+    
+    if model_width > geometry_width:
+        raise ValueError(f"Error: model input width ({model_width}) is greater than dataset sample width ({geometry_width}).")
+
+    if model_width < geometry_width:
+        return False
+
+    return True
+
 
 def predict(dataset_output_path: str | Path, model_checkpoint_path: str | Path, output_dir: str | Path, label_mask_path: str | Path | None, memory_batch_size: int | None = None):
     """
@@ -474,27 +600,37 @@ def predict(dataset_output_path: str | Path, model_checkpoint_path: str | Path, 
     model_checkpoint_path = Path(model_checkpoint_path)
 
     if model_checkpoint_path.suffix == ".keras":
-        model = keras.models.load_model('my_model.keras')
+        model = keras.models.load_model(model_checkpoint_path)
     else:
         model = build_network()
         model.load_weights(model_checkpoint_path)
 
-    mask = None
+    prediction_fn = predict_batch
+    wide_geometries = not check_shapes_equal(dataset_output_path, model)
+    if wide_geometries:
+        print(f"Detected model input width smaller than dataset sample width. Using sliding windows for prediction.")
+        prediction_fn = predict_batch_wide
+
     if label_mask_path is not None:
         mask = np.load(label_mask_path)
+    else:
+        mask = None
+        print()
+        print("WARNING: label mask not set. This will likely cause wrong predictions.")
+        print()
 
     if memory_batch_size is None:
-        geometries, _ = load_dataset(dataset_output_path)
-        predictions = predict_batch(geometries, model, mask)
-        save_predictions(predictions, output_dir)
+        geometries, _, sample_names = load_dataset(dataset_output_path)
+        predictions = prediction_fn(geometries, model, mask)
+        save_predictions(predictions, output_dir, sample_names)
         return predictions
     else:
         num_samples = _get_dataset_len(dataset_output_path)
         for start_index in range(0, num_samples, memory_batch_size):
             end_index = min(start_index + memory_batch_size, num_samples)
-            geometries, _ = load_dataset(dataset_output_path, indexes_interval=(start_index, end_index))
-            predictions = predict_batch(geometries, model, mask)
-            save_predictions(predictions, output_dir, start_index)
+            geometries, _, sample_names = load_dataset(dataset_output_path, indexes_interval=(start_index, end_index))
+            predictions = prediction_fn(geometries, model, mask)
+            save_predictions(predictions, output_dir, sample_names)
 
 if __name__ == "__main__":
 
