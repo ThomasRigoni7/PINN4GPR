@@ -501,19 +501,20 @@ def wavefield1D():
 
 
 def geom2bscan():
-    from src.dataset_creation.geom2bscan import load_dataset, filter_initial_wave, network
+    from src.dataset_creation.geom2bscan import load_dataset, split_dataset, filter_initial_wave, build_network
 
     figures_path = Path("figures/geom2bscan")
     figures_path.mkdir(exist_ok=True, parents=True)
     
-    train_data, train_labels, test_data, test_labels = load_dataset()
+    geometries, bscans, _ = load_dataset()
+    train_data, test_data, train_labels, test_labels = split_dataset(geometries, bscans)
     train_labels, test_labels, median = filter_initial_wave(train_labels, test_labels)
 
     test_data1 = np.expand_dims(test_data[:, :, :, 0], -1)
     test_data2 = np.expand_dims(test_data[:, :, :, 1], -1)
     test_mask = test_labels
 
-    model = network()
+    model = build_network()
     model_path = "results/geom2bscan_filtered_dataset2/model_backup.h5"
 
     model.load_weights(model_path)
