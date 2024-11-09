@@ -75,10 +75,10 @@ MLP on uniform geometry
 
 Time domain extension for a uniform geometry:
 
-===========================================================
+=========================================================== =
 |uniform_fig|
 ground truth, PINN prediction, NN prediction and difference
-===========================================================
+=========================================================== =
 
 
 MLP on two layer geometry
@@ -89,10 +89,10 @@ Time domain extension for a two layer geometry:
 .. |2layer_fig| image:: figures/mlp_2layer/final_45.png
     :height: 200
 
-===========================================================
+=========================================================== =
 |2layer_fig|
 ground truth, PINN prediction, NN prediction and difference
-===========================================================
+=========================================================== =
 
 MLP on railway geometry
 -----------------------
@@ -100,10 +100,10 @@ MLP on railway geometry
 .. |mlp_rail_fig| image:: figures/mlp_rail/final_1.png
     :height: 200
 
-============================================================
+============================================================ =
 |mlp_rail_fig|
 ground truth, PINN prediction, NN prediction and differences
-============================================================
+============================================================ =
 
 CNN on railway geometry
 -----------------------
@@ -114,7 +114,7 @@ CNN on railway geometry
     :width: 400
 
 =============== =================
-|time2image_gt| |time2image_pred|  
+|time2image_gt| |time2image_pred|
 ground truth    PINN predictions
 =============== =================
 
@@ -131,7 +131,7 @@ ground truth    PINN predictions
 
 distance/time charts:
 
-======== =======  =================
-|1D_mlp| |1D_cnn| |1D_discrete_mlp|  
+======== ======== =================
+|1D_mlp| |1D_cnn| |1D_discrete_mlp|
 MLP      CNN      discrete MLP
 ======== ======== =================
